@@ -27,3 +27,9 @@ Esta aplicação consiste em três modelos principais:
 ## Testes
 
 *Dentro do Application daml file
+
+## Contribuidores
+@triplom
+
+## Lincença
+...
