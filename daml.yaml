@@ -15,3 +15,5 @@ dependencies:
   - daml-script
 navigator-options:
   - --feature-user-management=false
+sandbox-options:
+  - --contract-id-seeding=testing-weak
