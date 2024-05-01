@@ -7,7 +7,7 @@ import Utility (makePartiesFrom)
 template Application
     with
         employee: Party
-        course: Party
+        courseParty: Party
         name: Text
         address: Text
         email: Text
@@ -18,67 +18,22 @@ template Application
         comment: Optional Text
     where
         signatory employee
-        observer course
+        observer courseParty
 
-        choice SubmitApplication: ContractId Application
-            with
-                appEmployee: Party
-                appCourse: Party
-                employeeName: Text
-                employeeAddress: Text
-                employeeEmail: Text
-                employeePhone: Optional Text
-                appTimestamp: Time
-            controller employee
-            do
-                create this with
-                    employee = appEmployee
-                    course = appCourse
-                    name = employeeName
-                    address = employeeAddress
-                    email = employeeEmail
-                    phone = employeePhone
-                    timestamp = appTimestamp
-                    status = "Pendente"
-                    score = None
-                    comment = None
-
-        nonconsuming choice SetStatus: ContractId Application
+        choice SubmitApplicationAndSetStatus: ContractId Application
             with
                 newStatus: Text
             controller employee
             do
                 create this with
                     status = newStatus
-                    -- Mantém os outros campos inalterados
                     employee
-                    course
+                    courseParty
                     name
                     address
                     email
                     phone
                     timestamp
-                    score
-                    comment
-
-        nonconsuming choice UpdateApplication: ContractId Application
-            with
-                newName: Text
-                newAddress: Text
-                newEmail: Text
-                newPhone: Optional Text
-            controller employee
-            do
-                create this with
-                    name = newName
-                    address = newAddress
-                    email = newEmail
-                    phone = newPhone
-                    -- Mantém os outros campos inalterados
-                    employee
-                    course
-                    timestamp
-                    status
                     score
                     comment
 
@@ -90,9 +45,9 @@ template Account
         timestamp: Time
     where
         signatory employee, course
-        key (employee, course): (Party, Party)
-        maintainer key._1
+       
 
+         
         choice AddPoints : ContractId Account
             with
                 newPoints: Int
@@ -100,17 +55,6 @@ template Account
             do
                 create this with
                     points = points + newPoints
-
-        controller course can
-            AddPoints newPoints: Int
-              with
-                courseId: ContractId Application
-                completedHours: Int
-              do
-                -- Calcular a quantidade de pontos com base nas horas completadas
-                let pointsToAdd = completedHours * 10
-                create this with
-                    points = points + pointsToAdd
 
 template CourseService
     with
@@ -126,7 +70,7 @@ template CourseService
                 now <- getTime
                 create Application with
                     employee
-                    course
+                    courseParty = course
                     name = ""
                     address = ""
                     email = ""
@@ -139,22 +83,10 @@ template CourseService
         nonconsuming choice CompleteCourse: ContractId Application with appId: ContractId Application
             controller course
             do
-                -- Exercita a escolha SubmitApplication da aplicação
-                exerciseByKey @Application appId SubmitApplication
-                -- Atualiza o status da aplicação para "Concluído"
-                exercise @Application appId (SetStatus "Concluído")
-                -- Procura pela conta associada à aplicação
-                account <- lookupByKey @Account (course, appId)
-                -- Se a conta existir, adiciona pontos a ela
-                case account of
-                    None -> return ()
-                    Some acc -> do
-                        -- Calcular as horas completadas no curso (suponha que seja 50 horas para este exemplo)
-                        let completedHours = 50
-                        -- Adicionar pontos com base nas horas completadas
-                        exercise acc (AddPoints 100 completedHours)
-                        -- Retorna a aplicação
-                        pure appId
+                exercise appId SubmitApplicationAndSetStatus with newStatus = "Concluído"
+                account <- fetch (employee, course)
+                exercise account AddPoints 100
+                pure appId
 
 setup : Script ()
 setup =
@@ -168,7 +100,7 @@ setup =
     appId <- submit damlcoding do
         create Application with
             employee = marcel
-            course = damlcoding
+            courseParty = damlcoding
             name = ""
             address = ""
             email = ""
@@ -185,16 +117,14 @@ test =
     [damlcoding, marcel] <- makePartiesFrom ["damlcoding", "Marcel"]
     now <- getTime
     let completedHours = 50
-    -- Cria um serviço de curso
     csId <- submit damlcoding do
         create CourseService with
             employee = marcel
             course = damlcoding
-    -- Cria uma aplicação
     appId <- submit damlcoding do
         create Application with
             employee = marcel
-            course = damlcoding
+            courseParty = damlcoding
             name = ""
             address = ""
             email = ""
@@ -203,11 +133,10 @@ test =
             status = "New"
             score = None
             comment = None
-    -- Completa o curso
     submit damlcoding do
         exercise @CourseService csId (CompleteCourse appId)
-    -- Verifica se os pontos foram adicionados à conta
     let expectedPoints = completedHours * 10
-    account <- query @Account (course, appId)
-    assertMsg "Pontos não foram adicionados corretamente à conta após completar o curso" (account == Some { points = expectedPoints, .. })
-    pure ()
+    account <- query @Account (damlcoding, appId)
+    case account of
+        None -> error "Não foi possível encontrar a conta associada à aplicação."
+        Some acc -> assertMsg ("Pontos não foram adicionados corretamente à conta após completar o curso. Expected: " ++ show expectedPoints ++ ", Actual: " ++ show (getField @"points" acc)) (getField @"points" acc == expectedPoints)
