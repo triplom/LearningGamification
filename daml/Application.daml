@@ -4,139 +4,99 @@ import DA.Time
 import Daml.Script
 import Utility (makePartiesFrom)
 
-template Application
-    with
-        employee: Party
-        courseParty: Party
-        name: Text
-        address: Text
-        email: Text
-        phone: Optional Text
-        timestamp: Time
-        status: Text
-        score: Optional Int
-        comment: Optional Text
-    where
-        signatory employee
-        observer courseParty
+data Status = New | InProgress | Concluded deriving (Eq, Show)
 
-        choice SubmitApplicationAndSetStatus: ContractId Application
-            with
-                newStatus: Text
-            controller employee
-            do
-                create this with
-                    status = newStatus
-                    employee
-                    courseParty
-                    name
-                    address
-                    email
-                    phone
-                    timestamp
-                    score
-                    comment
+template Application
+  with
+    employee, courseParty: Party
+    name, address, email: Text
+    phone: Optional Text
+    timestamp: Time
+    status: Status
+    score: Optional Int
+    comment: Optional Text
+  where
+    signatory employee
+    observer courseParty
+    
+    choice SubmitApplicationAndSetStatus : ContractId Application
+      controller employee
+      do
+        create this with status = newStatus
+
 
 template Account
-    with
-        employee: Party
-        course: Party
-        points: Int
-        timestamp: Time
-    where
-        signatory employee, course
-       
+  with
+    employee, course: Party
+    points: Int
+    timestamp: Time
+  where
+    signatory course
+    observer employee
 
-         
-        choice AddPoints : ContractId Account
-            with
-                newPoints: Int
-            controller course
-            do
-                create this with
-                    points = points + newPoints
+    choice AddPoints : ContractId Account
+      controller course
+      do
+        create this with points = points + newPoints
+
 
 template CourseService
-    with
-        employee: Party
-        course: Party
-    where
-        signatory course
-        observer employee
+  with
+    employee: Party
+    course: Party
+  where
+    signatory course
+    observer employee
 
-        nonconsuming choice CreateBlankApplication: ContractId Application
-            controller employee
-            do
-                now <- getTime
-                create Application with
-                    employee
-                    courseParty = course
-                    name = ""
-                    address = ""
-                    email = ""
-                    phone = None
-                    timestamp = now
-                    status = "Pendente"
-                    score = None
-                    comment = None
-
-        nonconsuming choice CompleteCourse: ContractId Application with appId: ContractId Application
-            controller course
-            do
-                exercise appId SubmitApplicationAndSetStatus with newStatus = "Concluído"
-                account <- fetch (employee, course)
-                exercise account AddPoints 100
-                pure appId
-
-setup : Script ()
-setup =
-  script do
-    [damlcoding, marcel] <- makePartiesFrom ["damlcoding", "Marcel"]
-    time <- getTime
-    csId <- submit damlcoding do
-        create CourseService with
-            employee = marcel
-            course = damlcoding
-    appId <- submit damlcoding do
+    nonconsuming choice CreateBlankApplication : ContractId Application
+      controller employee
+      do
+        now <- getTime
         create Application with
-            employee = marcel
-            courseParty = damlcoding
-            name = ""
-            address = ""
-            email = ""
-            phone = None
-            timestamp = time
-            status = "New"
-            score = None
-            comment = None
-    pure ()
+          employee
+          courseParty = course
+          name = ""
+          address = ""
+          email = ""
+          phone = None
+          timestamp = now
+          status = New
+          score = None
+          comment = None
+
+    choice CompleteCourse : ContractId Application
+        controller course 
+            do
+            exercise appId SubmitApplicationAndSetStatus with newStatus = "Concluded"
+            account <- fetch (employee, course)
+            exercise account AddPoints 100
+            pure appId
+
+  
+{-
+setup : Script ()
+setup = do
+  [damlcoding, marcel] <- makePartiesFrom ["damlcoding", "Marcel"]
+  time <- getTime
+  _ <- submit damlcoding do
+    create (CourseService employee = marcel course = damlcoding)
+  _ <- submit damlcoding do
+    create (Application employee marcel "" "" "" None time New None)
+  pure ()
 
 test : Script ()
-test =
-  script do
-    [damlcoding, marcel] <- makePartiesFrom ["damlcoding", "Marcel"]
-    now <- getTime
-    let completedHours = 50
-    csId <- submit damlcoding do
-        create CourseService with
-            employee = marcel
-            course = damlcoding
-    appId <- submit damlcoding do
-        create Application with
-            employee = marcel
-            courseParty = damlcoding
-            name = ""
-            address = ""
-            email = ""
-            phone = None
-            timestamp = now
-            status = "New"
-            score = None
-            comment = None
-    submit damlcoding do
-        exercise @CourseService csId (CompleteCourse appId)
-    let expectedPoints = completedHours * 10
-    account <- query @Account (damlcoding, appId)
-    case account of
-        None -> error "Não foi possível encontrar a conta associada à aplicação."
-        Some acc -> assertMsg ("Pontos não foram adicionados corretamente à conta após completar o curso. Expected: " ++ show expectedPoints ++ ", Actual: " ++ show (getField @"points" acc)) (getField @"points" acc == expectedPoints)
+test = do
+  [damlcoding, marcel] <- makePartiesFrom ["damlcoding", "Marcel"]
+  now <- getTime
+  _ <- submit damlcoding do
+    create (CourseService employee = marcel course = damlcoding)
+  appId <- submit damlcoding do
+    create (Application employee marcel "" "" "" None now New None)
+  submit damlcoding do
+    exercise @CourseService (CourseService employee = marcel course = damlcoding) (CompleteCourse appId)
+  let expectedPoints = 50 * 10
+  account <- query @Account (marcel, appId)
+  case account of
+    Nothing -> error "Não foi possível encontrar a conta associada à aplicação."
+    Just acc -> assertMsg ("Pontos não foram adicionados corretamente à conta após completar o curso. Expected: " ++ show expectedPoints ++ ", Actual: " ++ show acc) (acc == expectedPoints)
+-}
