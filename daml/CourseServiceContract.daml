@@ -1,0 +1,14 @@
+module CourseServiceContract where
+
+import CourseService
+
+template CourseServiceContract
+  with
+    serviceCid: ContractId CourseService
+  where
+    signatory serviceCid
+
+    choice ModifyCourse : Party -> ContractId CourseServiceContract
+      controller serviceCid
+        do
+          exercise serviceCid ModifyCourse with course = can

@@ -1,0 +1,14 @@
+module AccountContract where
+
+import Account
+
+template AccountContract
+  with
+    accCid: ContractId Account
+  where
+    signatory accCid
+
+    choice DeductPoints : Int -> ContractId AccountContract
+      controller accCid
+        do
+          exercise accCid DeductPoints with points = points - can

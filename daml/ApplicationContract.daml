@@ -1,0 +1,32 @@
+module ApplicationContract where
+
+import Application
+
+template ApplicationContract
+  with
+    appCid: ContractId Application
+  where
+    signatory appCid
+
+    choice AddComment : Text -> ContractId ApplicationContract
+      controller appCid
+        do
+        comment <- expectText "Enter a comment:"
+        let newAppCid = if isAllowedToAddComment appCid
+                        then create ApplicationContract with appCid
+                        else appCid
+        pure newAppCid
+
+    choice UpdateScore : Int -> ContractContractId Application
+      controller appCid
+        do
+          let newAppCid = if isAllowedToUpdateScore
+                            then AppContract (appData appCid) (appComments appCid) (AppScore score)
+                            else appCid
+          score <- expectText "Enter a score:"
+          pure newAppCid
+
+-- Check if the user is allowed to add a comment or update the score
+isAllowedToAddComment, isAllowedToUpdateScore :: ContractId Application -> Bool
+isAllowedToAddComment appCid = -- Define your logic here to check if adding a comment is allowed for the given application
+isAllowedToUpdateScore appCid = -- Define your logic here to check if updating the score is allowed for the given application
