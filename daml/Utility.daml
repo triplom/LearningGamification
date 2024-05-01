@@ -10,4 +10,4 @@ makePartiesFrom names =
 
 makeParties : Script [Party]
 makeParties =
-  makePartiesFrom ["Marcel", "Nuno", "Natacha", "Course"]
+  makePartiesFrom ["Marcel", "Andre", "Natacha", "Course"]
