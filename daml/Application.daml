@@ -1,213 +1,86 @@
 module Application where
 
-import DA.Time
-import Daml.Script
-import Utility (makePartiesFrom)
+-- Definição do tipo de dados para o status da aplicação
+data Status = New | InProgress | Pending | Concluded | InvalidStatus
+  deriving (Eq, Show)
 
+-- Template para o contrato de aplicação
 template Application
-    with
-        employee: Party
-        course: Party
-        name: Text
-        address: Text
-        email: Text
-        phone: Optional Text
-        timestamp: Time
-        status: Text
-        score: Optional Int
-        comment: Optional Text
-    where
-        signatory employee
-        observer course
+  with
+    employee, courseParty: Party  -- Partes envolvidas: funcionário e curso
+    name, address, email: Text    -- Informações pessoais do aplicante
+    phone: Optional Text          -- Número de telefone opcional
+    timestamp: Time               -- Carimbo de data/hora da aplicação
+    status: Status                -- Status da aplicação (Novo, Em andamento, Pendente, Concluído)
+    score: Optional Int           -- Pontuação opcional da aplicação
+    comment: Optional Text       -- Comentário opcional
+  where
+    signatory employee          -- O funcionário assina o contrato
+    observer courseParty       -- O curso é observado pelo contrato
+    
+    -- Escolha para submeter uma aplicação e definir seu status
+    choice SubmitApplicationAndSetStatus : ContractId Application
+      with
+        newStatus: Status       -- Novo status para a aplicação
+      controller employee      -- A escolha é controlada pelo funcionário
+      do
+        create this with status = newStatus  -- Criação da aplicação com o novo status
 
-        choice SubmitApplication: ContractId Application
-            with
-                appEmployee: Party
-                appCourse: Party
-                employeeName: Text
-                employeeAddress: Text
-                employeeEmail: Text
-                employeePhone: Optional Text
-                appTimestamp: Time
-            controller employee
-            do
-                create this with
-                    employee = appEmployee
-                    course = appCourse
-                    name = employeeName
-                    address = employeeAddress
-                    email = employeeEmail
-                    phone = employeePhone
-                    timestamp = appTimestamp
-                    status = "Pendente"
-                    score = None
-                    comment = None
-
-        nonconsuming choice SetStatus: ContractId Application
-            with
-                newStatus: Text
-            controller employee
-            do
-                create this with
-                    status = newStatus
-                    -- Mantém os outros campos inalterados
-                    employee
-                    course
-                    name
-                    address
-                    email
-                    phone
-                    timestamp
-                    score
-                    comment
-
-        nonconsuming choice UpdateApplication: ContractId Application
-            with
-                newName: Text
-                newAddress: Text
-                newEmail: Text
-                newPhone: Optional Text
-            controller employee
-            do
-                create this with
-                    name = newName
-                    address = newAddress
-                    email = newEmail
-                    phone = newPhone
-                    -- Mantém os outros campos inalterados
-                    employee
-                    course
-                    timestamp
-                    status
-                    score
-                    comment
-
+-- Template para o contrato de conta
 template Account
-    with
-        employee: Party
-        course: Party
-        points: Int
-        timestamp: Time
-    where
-        signatory employee, course
-        key (employee, course): (Party, Party)
-        maintainer key._1
+  with
+    employee, course: Party   -- Partes envolvidas: funcionário e curso
+    points: Int               -- Pontuação atual da conta
+    newPoints: Int            -- Novos pontos a serem adicionados
+    timestamp: Time           -- Carimbo de data/hora da transação
+  where
+    signatory course          -- O curso assina o contrato
+    observer employee         -- O funcionário é observado pelo contrato
 
-        choice AddPoints : ContractId Account
-            with
-                newPoints: Int
-            controller course
-            do
-                create this with
-                    points = points + newPoints
+    -- Escolha para adicionar pontos à conta
+    choice AddPoints : ContractId Account
+      controller course       -- A escolha é controlada pelo curso
+      do
+        create this with points = points + newPoints  -- Adiciona os novos pontos à conta
 
-        controller course can
-            AddPoints newPoints: Int
-              with
-                courseId: ContractId Application
-                completedHours: Int
-              do
-                -- Calcular a quantidade de pontos com base nas horas completadas
-                let pointsToAdd = completedHours * 10
-                create this with
-                    points = points + pointsToAdd
-
+-- Template para o serviço do curso
 template CourseService
-    with
-        employee: Party
-        course: Party
-    where
-        signatory course
-        observer employee
+  with
+    employee: Party           -- Parte envolvida: funcionário
+    course: Party             -- Parte envolvida: curso
+  where
+    signatory course          -- O curso assina o contrato
+    observer employee         -- O funcionário é observado pelo contrato
 
-        nonconsuming choice CreateBlankApplication: ContractId Application
-            controller employee
-            do
-                now <- getTime
-                create Application with
-                    employee
-                    course
-                    name = ""
-                    address = ""
-                    email = ""
-                    phone = None
-                    timestamp = now
-                    status = "Pendente"
-                    score = None
-                    comment = None
-
-        nonconsuming choice CompleteCourse: ContractId Application with appId: ContractId Application
-            controller course
-            do
-                -- Exercita a escolha SubmitApplication da aplicação
-                exerciseByKey @Application appId SubmitApplication
-                -- Atualiza o status da aplicação para "Concluído"
-                exercise @Application appId (SetStatus "Concluído")
-                -- Procura pela conta associada à aplicação
-                account <- lookupByKey @Account (course, appId)
-                -- Se a conta existir, adiciona pontos a ela
-                case account of
-                    None -> return ()
-                    Some acc -> do
-                        -- Calcular as horas completadas no curso (suponha que seja 50 horas para este exemplo)
-                        let completedHours = 50
-                        -- Adicionar pontos com base nas horas completadas
-                        exercise acc (AddPoints 100 completedHours)
-                        -- Retorna a aplicação
-                        pure appId
-
-setup : Script ()
-setup =
-  script do
-    [damlcoding, marcel] <- makePartiesFrom ["damlcoding", "Marcel"]
-    time <- getTime
-    csId <- submit damlcoding do
-        create CourseService with
-            employee = marcel
-            course = damlcoding
-    appId <- submit damlcoding do
+    -- Escolha para criar uma aplicação em branco
+    nonconsuming choice CreateBlankApplication : ContractId Application
+      controller employee    -- A escolha é controlada pelo funcionário
+      do
+        now <- getTime
+        -- Criação de uma aplicação em branco com os dados padrão e status "New"
         create Application with
-            employee = marcel
-            course = damlcoding
-            name = ""
-            address = ""
-            email = ""
-            phone = None
-            timestamp = time
-            status = "New"
-            score = None
-            comment = None
-    pure ()
+          employee
+          courseParty = course
+          name = ""
+          address = ""
+          email = ""
+          phone = None
+          timestamp = now
+          status = New
+          score = None
+          comment = None
 
-test : Script ()
-test =
-  script do
-    [damlcoding, marcel] <- makePartiesFrom ["damlcoding", "Marcel"]
-    now <- getTime
-    let completedHours = 50
-    -- Cria um serviço de curso
-    csId <- submit damlcoding do
-        create CourseService with
-            employee = marcel
-            course = damlcoding
-    -- Cria uma aplicação
-    appId <- submit damlcoding do
-        create Application with
-            employee = marcel
-            course = damlcoding
-            name = ""
-            address = ""
-            email = ""
-            phone = None
-            timestamp = now
-            status = "New"
-            score = None
-            comment = None
-    -- Completa o curso
-    submit damlcoding do
-        exercise @CourseService csId (CompleteCourse appId)
-    -- Verifica se os pontos foram adicionados à conta
-    let expectedPoints = completedHours * 10
-    account <- query @Account (course, appId)
-    assertMsg "Pontos não foram adicionados corretamente à conta após completar o curso" (account == Some { points = expectedPoints, .. })
-    pure ()
+    -- Escolha para completar um curso
+    choice CompleteCourse : ContractId Application
+      with
+        appId: ContractId Application  -- ID do contrato de aplicação
+        account: ContractId Account     -- ID do contrato de conta
+      controller course                -- A escolha é controlada pelo curso
+      do
+        -- Atualiza o status da aplicação para "Concluído"
+        exercise appId SubmitApplicationAndSetStatus with newStatus = Concluded
+        -- Adiciona os pontos à conta
+        exercise account AddPoints
+        return appId
+
+

@@ -1,14 +1,27 @@
-sdk-version: 2.8.3
+sdk-version: 2.8.5
 name: LearningGamification
 source: daml
-init-script: Application:applicationCourse
+
 parties:
   - Marcel
   - blockchain_coding
-version: 0.0.1
+  - Andre
+  - Natacha
+  - Course
+
+version: 1.0.0
+
+init-scripts: 
+  - testScript : Script
+  - test : Script
+
 dependencies:
   - daml-prim
   - daml-stdlib
   - daml-script
+
+navigator-options:
+  - --feature-user-management=false
+
 sandbox-options:
-  - --wall-clock-time
+  - --contract-id-seeding=testing-weak
