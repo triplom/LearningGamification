@@ -1,14 +1,25 @@
 module AccountContract where
 
-import Account
+import Application
+import Daml.Script
 
+-- Definição do template de contrato AccountContract
 template AccountContract
   with
     accCid: ContractId Account
   where
+    -- Define quem é o signatário do contrato, neste caso, é o próprio contrato de conta.
     signatory accCid
 
-    choice DeductPoints : Int -> ContractId AccountContract
+    -- Escolha para deduzir pontos da conta
+    choice DeductPoints : Int ContractId AccountContract
+      -- Define quem controla esta escolha, que é o contrato de conta identificado por accCid.
       controller accCid
+        -- O corpo da escolha
         do
-          exercise accCid DeductPoints with points = points - can
+          -- Obtém o valor dos pontos a serem deduzidos
+          points <- argument
+          -- Executa a ação de deduzir os pontos da conta, onde 'exercise' é usado para interagir com o contrato Account
+          -- e 'DeductPoints' é o nome da escolha definida no contrato Account.
+          -- 'with' é usado para passar os argumentos para a escolha, neste caso, points, e definir como os pontos devem ser deduzidos.
+          exercise accCid DeductPoints with { points = points - can }

@@ -1,0 +1,24 @@
+{-# LANGUAGE ApplicativeDo #-}
+
+module AccountContractTest where
+
+import AccountContract
+import Daml.Script
+
+-- Definição do script de teste
+test : Script ()
+test = do
+  -- Criar um contrato de conta com um saldo inicial de 100
+  accCid <- submitTx do create Account with balance = 100
+  
+  -- Imprimir o ID do contrato de conta criado
+  logInfo $ "Contract ID: " <> show accCid
+
+  -- Deduzir 50 pontos da conta
+  accCid' <- submitTx do exercise accCid (DeductPoints 50)
+  
+  -- Obter o estado atual da conta após a dedução dos pontos
+  acc <- query @AccountContract accCid'
+  
+  -- Imprimir o saldo atual da conta
+  logInfo $ "Current balance: " <> show (balance acc)

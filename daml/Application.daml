@@ -1,7 +1,7 @@
 module Application where
 
 -- Definição do tipo de dados para o status da aplicação
-data Status = New | InProgress | Pending | Concluded
+data Status = New | InProgress | Pending | Concluded | InvalidStatus
   deriving (Eq, Show)
 
 -- Template para o contrato de aplicação
@@ -79,56 +79,8 @@ template CourseService
       do
         -- Atualiza o status da aplicação para "Concluído"
         exercise appId SubmitApplicationAndSetStatus with newStatus = Concluded
-
         -- Adiciona os pontos à conta
         exercise account AddPoints
-
         return appId
 
--- # Test Cases # (Comentários explicativos para cada caso de teste)
 
--- Application Template
--- Test Case 1: Criar uma nova aplicação com sucesso
-employee = "Alice"
-courseParty = "Blockchain Course"
-name = "John Doe"
-address = "123 Main St"
-email = "john@example.com"
-phone = Just "123-456-7890"
-timestamp = "2024-05-04T12:00:00Z"
-
--- Test Case 2: Submeter uma aplicação com sucesso (Atualizar status para "Pending")
-appId = <ID do contrato de aplicação existente>
-novoStatus = Pending
-
--- Test Case 3: Tentar atualizar status com um status inválido
-appId = <ID do contrato de aplicação existente>
-novoStatus = InvalidStatus
-
--- Account Template
--- Test Case 4: Adicionar pontos à conta com sucesso
-employee = "Bob"
-course = "Blockchain Course"
-pontosAtuais = 100
-novosPontos = 50
-timestamp = "2024-05-04T12:00:00Z"
-
--- Test Case 5: Tentar adicionar pontos negativos à conta
-employee = "Bob"
-course = "Blockchain Course"
-pontosAtuais = 100
-novosPontos = -50
-timestamp = "2024-05-04T12:00:00Z"
-
--- CourseService Template
--- Test Case 6: Criar uma aplicação em branco com sucesso
-employee = "Charlie"
-course = "Blockchain Course"
-
--- Test Case 7: Completar um curso com sucesso
-appId = <ID do contrato de aplicação existente>
-accountId = <ID do contrato de conta existente>
-
--- Test Case 8: Tentar completar um curso com um contrato de aplicação inexistente
-appId = <ID do contrato de aplicação inexistente>
-accountId = <ID do contrato de conta existente>

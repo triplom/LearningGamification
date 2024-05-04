@@ -1,32 +1,29 @@
+{-# LANGUAGE ApplicativeDo #-}
+
 module ApplicationContract where
 
 import Application
+import Daml.Script
 
+-- Definição do contrato ApplicationContract, que interage com o contrato Application
 template ApplicationContract
   with
-    appCid: ContractId Application
+    appCid: ContractId Application  -- ID do contrato Application associado a este contrato ApplicationContract
   where
-    signatory appCid
-
+    signatory appCid                -- A parte que assina o contrato ApplicationContract é a mesma que assina o contrato Application
+    
+    -- Escolha para adicionar um comentário ao contrato Application associado
+    --controller appCid = appCid               -- A escolha é controlada pela parte que assina o contrato Application
     choice AddComment : Text -> ContractId ApplicationContract
-      controller appCid
-        do
-        comment <- expectText "Enter a comment:"
-        let newAppCid = if isAllowedToAddComment appCid
-                        then create ApplicationContract with appCid
-                        else appCid
-        pure newAppCid
+      do
+        comment <- getInput "Enter a comment:"  -- Solicita ao usuário para inserir um comentário
+        create this with appCid                    -- Cria uma nova instância de ApplicationContract
+        pure this                         -- Retorna a nova instância de ApplicationContract
 
-    choice UpdateScore : Int -> ContractContractId Application
-      controller appCid
-        do
-          let newAppCid = if isAllowedToUpdateScore
-                            then AppContract (appData appCid) (appComments appCid) (AppScore score)
-                            else appCid
-          score <- expectText "Enter a score:"
-          pure newAppCid
-
--- Check if the user is allowed to add a comment or update the score
-isAllowedToAddComment, isAllowedToUpdateScore :: ContractId Application -> Bool
-isAllowedToAddComment appCid = -- Define your logic here to check if adding a comment is allowed for the given application
-isAllowedToUpdateScore appCid = -- Define your logic here to check if updating the score is allowed for the given application
+    -- Escolha para atualizar a pontuação no contrato Application associado
+    controller appCid = appCid                -- A escolha é controlada pela parte que assina o contrato Application
+    choice UpdateScore : Int -> ContractId ApplicationContract
+      do
+        score <- getInput "Enter a score:"  -- Solicita ao usuário para inserir uma pontuação
+        create this with appCid                       -- Cria uma nova instância de ApplicationContract
+        pure this                            -- Retorna a nova instância de ApplicationContract

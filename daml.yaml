@@ -8,12 +8,20 @@ parties:
   - Andre
   - Natacha
   - Course
+
 version: 1.0.0
+
+init-scripts: 
+  - testScript : Script
+  - test : Script
+
 dependencies:
   - daml-prim
   - daml-stdlib
   - daml-script
+
 navigator-options:
   - --feature-user-management=false
+
 sandbox-options:
   - --contract-id-seeding=testing-weak

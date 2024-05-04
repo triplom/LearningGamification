@@ -1,0 +1,92 @@
+{-# LANGUAGE ApplicativeDo #-}
+
+module ApplicationTest where
+
+import Daml.Script
+import Application
+import Account
+
+-- # Test Cases # (Comentários explicativos para cada caso de teste)
+
+-- Função para executar o script de teste
+testScript : Script ()
+testScript = do
+
+-- Application Template
+
+  -- Test Case 1: Criar uma nova aplicação com sucesso
+  createCmd <- createCmd $ Application with
+    employee = "Natasha"
+    courseParty = "Blockchain Course"
+    name = "John Doe"
+    address = "123 Main St"
+    email = "john@example.com"
+    phone = Some "123-456-7890"
+    timestamp = "2024-05-04T12:00:00Z"
+    status = New
+    score = None
+    comment = None
+  submit createCmd
+-- Imprimir o ID do contrato de conta criado
+  logInfo $ "Contract ID: " <> show accCid
+  
+  -- Test Case 2: Submeter uma aplicação com sucesso (Atualizar status para "Pending")
+  submitCmd <- exerciseCmd $ SubmitApplicationAndSetStatus "<ID do contrato de aplicação existente>" Pending
+  submit submitCmd
+-- Imprimir o Status de conta criada
+  logInfo $ "Status: " <> show status
+
+ -- Test Case 3: Tentar atualizar status com um status inválido
+ appId = "<ID do contrato de aplicação existente>"
+ novoStatus = InvalidStatus
+-- Imprimir o ID do contrato de conta criado
+  logInfo $ "Status: " <> show status
+
+ -- Account Template
+ -- Test Case 4: Adicionar pontos à conta com sucesso
+ employee = "Marcel"
+ course = "Blockchain Course"
+ pontosAtuais = 100
+ novosPontos = 50
+ timestamp = "2024-05-04T12:00:00Z"
+
+ addPointsCmd <- exerciseCmd $ AddPoints "<ID do contrato de conta existente>" 50
+ submit addPointsCmd
+-- Imprimir o ID do contrato de conta criado
+  logInfo $ "Contract ID: " <> show accCid
+
+-- Test Case 5: Tentar adicionar pontos negativos à conta
+employee = "Marcel"
+course = "Blockchain Course"
+pontosAtuais = 100
+novosPontos = -50
+timestamp = "2024-05-04T12:00:00Z"
+
+addPointsCmd <- exerciseCmd $ AddPoints "<ID do contrato de conta existente>" (-50)
+submit addPointsCmd
+-- Imprimir o ID do contrato de conta criado
+  logInfo $ "Contract ID: " <> show accCid
+
+-- CourseService Template
+-- Test Case 6: Criar uma aplicação em branco com sucesso
+employee = "Andre"
+course = "Blockchain Course"
+
+createBlankCmd <- exerciseCmd $ CreateBlankApplication "Andre" "Blockchain Course"
+submit createBlankCmd
+-- Imprimir o ID do contrato de conta criado
+  logInfo $ "Contract ID: " <> show accCid
+
+-- Test Case 7: Completar um curso com sucesso
+appId = "<ID do contrato de aplicação existente>"
+accountId = "<ID do contrato de conta existente>"
+
+ -- Test Case 7: Completar um curso com sucesso
+completeCmd <- exerciseCmd $ CompleteCourse appId accountId
+submit completeCmd
+
+-- Test Case 8: Tentar completar um curso com um contrato de aplicação inexistente
+appId = "<ID do contrato de aplicação inexistente>"
+accountId = "<ID do contrato de conta existente>"
+
+pure()
