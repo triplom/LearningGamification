@@ -1,0 +1,49 @@
+module ApplicationTest where
+
+import Daml.Script
+import Application
+
+-- Test Cases
+testScript : Script ()
+testScript = do
+
+  -- Test Case 1: Criar uma nova aplicação com sucesso
+  appCid <- createCmd $ Application with
+    employee = "Natasha"
+    courseParty = "Blockchain Course"
+    name = "John Doe"
+    address = "123 Main St"
+    email = "john@example.com"
+    phone = Some "123-456-7890"
+    timestamp = "2024-05-04T12:00:00Z"
+    status = New
+    score = None
+    comment = None
+  join (submitCmd appCid)
+
+  -- Test Case 2: Submeter uma aplicação com sucesso (Atualizar status para "Pending")
+  submitCmd2 <- exerciseCmd $ SubmitApplicationAndSetStatus appCid Pending
+  submit submitCmd2
+
+  -- Test Case 3: Tentar atualizar status com um status inválido
+  let appId = appCid
+      novoStatus = InvalidStatus
+
+  -- Test Case 4: Adicionar pontos à conta com sucesso
+  addPointsCmd <- exerciseCmd $ AddPoints "<ID do contrato de conta existente>" 50
+  submit addPointsCmd
+
+  -- Test Case 5: Tentar adicionar pontos negativos à conta
+  addPointsCmd <- exerciseCmd $ AddPoints "<ID do contrato de conta existente>" (-50)
+  submit addPointsCmd
+
+  -- Test Case 6: Criar uma aplicação em branco com sucesso
+  createBlankCmd <- exerciseCmd $ CreateBlankApplication "Andre" "Blockchain Course"
+  submit createBlankCmd
+
+  -- Test Case 7: Completar um curso com sucesso
+  completeCmd <- exerciseCmd $ CompleteCourse appId "<ID do contrato de conta existente>"
+  submit completeCmd
+
+  -- Test Case 8: Tentar completar um curso com um contrato de aplicação inexistente
+  pure ()
