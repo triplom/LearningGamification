@@ -3,12 +3,18 @@ module ApplicationTest where
 import Daml.Script
 import Application
 
+-- Constants
+accountId : Text
+accountId = "<ID do contrato de conta existente>"
+
+invalidStatus : Application.Status
+invalidStatus = InvalidStatus
+
 -- Test Cases
 testScript : Script ()
 testScript = do
-
   -- Test Case 1: Criar uma nova aplicação com sucesso
-  appCid <- createCmd $ Application with
+  let appId : ApplicationId <- createCmd $ Application with
     employee = "Natasha"
     courseParty = "Blockchain Course"
     name = "John Doe"
@@ -19,31 +25,27 @@ testScript = do
     status = New
     score = None
     comment = None
-  join (submitCmd appCid)
+  submit appId
 
   -- Test Case 2: Submeter uma aplicação com sucesso (Atualizar status para "Pending")
-  submitCmd2 <- exerciseCmd $ SubmitApplicationAndSetStatus appCid Pending
+  submitCmd2 <- exerciseCmd $ SubmitApplicationAndSetStatus appId Pending
   submit submitCmd2
 
   -- Test Case 3: Tentar atualizar status com um status inválido
-  let appId = appCid
-      novoStatus = InvalidStatus
+  submitCmd3 <- exerciseCmd $ SubmitApplicationAndSetStatus appId invalidStatus
+  submit submitCmd3
 
-  -- Test Case 4: Adicionar pontos à conta com sucesso
-  addPointsCmd <- exerciseCmd $ AddPoints "<ID do contrato de conta existente>" 50
+  -- Test Cases 4-5: Adicionar pontos à conta
+  addPointsCmd <- exerciseCmd $ AddPoints accountId 50
   submit addPointsCmd
 
-  -- Test Case 5: Tentar adicionar pontos negativos à conta
-  addPointsCmd <- exerciseCmd $ AddPoints "<ID do contrato de conta existente>" (-50)
-  submit addPointsCmd
+  addNegativePointsCmd <- exerciseCmd $ AddPoints accountId (-50)
+  submit addNegativePointsCmd
 
   -- Test Case 6: Criar uma aplicação em branco com sucesso
   createBlankCmd <- exerciseCmd $ CreateBlankApplication "Andre" "Blockchain Course"
   submit createBlankCmd
 
   -- Test Case 7: Completar um curso com sucesso
-  completeCmd <- exerciseCmd $ CompleteCourse appId "<ID do contrato de conta existente>"
+  completeCmd <- exerciseCmd $ CompleteCourse appId accountId
   submit completeCmd
-
-  -- Test Case 8: Tentar completar um curso com um contrato de aplicação inexistente
-  pure ()
