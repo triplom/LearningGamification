@@ -1,0 +1,33 @@
+-- CourseService.daml
+module CourseService where
+
+import Account
+import Application
+
+template CourseService
+  with
+    employee: Party
+    course: Party
+  where
+    signatory course
+    observer employee
+
+    choice CompleteCourse : ContractId Application
+      with
+        appId: ContractId Application
+        accountId: ContractId Account
+      controller course
+      do
+        app <- fetch appId
+        case app.status of
+          Pending -> do
+            -- Exercitar a escolha SubmitApplicationAndSetStatus no contrato Application
+            exercise appId SubmitApplicationAndSetStatus with newStatus = Completed
+            
+            -- Exercitar a escolha AddPoints no contrato Account com um valor de pontos (por exemplo, 10)
+            let pointsToAdd = 10  -- Aqui você pode definir a quantidade de pontos a serem adicionados
+            exercise accountId (AddPoints pointsToAdd)
+            
+            -- Retornar o ContractId da Application após completar o curso
+            return appId
+          _ -> fail "Application is not in Pending status"
