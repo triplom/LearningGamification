@@ -7,13 +7,16 @@ parties:
   - blockchain_coding
   - Andre
   - Natacha
-  - Course
+  - Yonara
+  - course
+  - employee
+  - parties
 
-version: 1.0.0
+version: 1.0.1
 
 init-scripts: 
-  - testScript : Script
   - test : Script
+  - setup : Script
 
 dependencies:
   - daml-prim
@@ -22,6 +25,3 @@ dependencies:
 
 navigator-options:
   - --feature-user-management=false
-
-sandbox-options:
-  - --contract-id-seeding=testing-weak

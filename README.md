@@ -15,6 +15,45 @@ Esta aplicação consiste em três modelos principais:
 - Colaboradores podem atualizar os detalhes de sua inscrição.
 - Colaboradores podem concluir um curso, o que adiciona pontos à sua conta com base no número de horas concluídas.
 
+## DiagramER
+   +------------------+      +--------------+       +-----------------+
+   |    Employee      |      |    Course    |       |   Application   |
+   +------------------+      +--------------+       +-----------------+
+   | - employee_id    |      | - course_id  |       | - application_id|
+   | - name           |      | - name       |       | - employee_id   |
+   | - email          |      | - duration   |       | - course_id     |
+   | - phone          |      | - description|       | - name          |
+   |                  |      |              |       | - address       |
+   |                  |      |              |       | - email         |
+   |                  |      |              |       | - phone         |
+   |                  |      |              |       | - timestamp     |
+   +------------------+      +--------------+       | - status        |
+              |                           |         | - score         |
+              |                           |         | - comment       |
+              |                           |         +-----------------+
+              |                           |
+              |                           |
+              |     +-----------------+   |
+              |     |    Account      |   |
+              |     +-----------------+   |
+              |     | - account_id    |   |
+              |     | - employee_id   |   |
+              |     | - course_id     |   |
+              |     | - points        |   |
+              |     +-----------------+   |
+              |            |              |
+              |            |              |
+              |            |              |
+              |     +-----------------+   |
+              |     | CourseService   |   |
+              |     +-----------------+   |
+              |     | - service_id    |   |
+              |     | - employee_id   |   |
+              |     | - course_id     |   |
+              |     +-----------------+   |
+              +--------------------------+
+
+
 ## Uso
 
 1. Clone o repositório.
