@@ -1,0 +1,23 @@
+-- Account.daml
+module Account where
+
+template Account
+  with
+    parties: Party
+    employee: Party
+    course: Party
+    points: Int
+    timestamp: Time
+  where
+    signatory course
+    observer employee
+
+    choice AddPoints : ContractId Account
+      with
+        newPoints: Int
+      controller employee
+      do
+        create this with points = points + newPoints
+
+
+
