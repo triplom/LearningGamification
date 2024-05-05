@@ -1,86 +1,30 @@
+-- Application.daml
 module Application where
 
--- Definição do tipo de dados para o status da aplicação
-data Status = New | InProgress | Pending | Concluded | InvalidStatus
+data Status = New | InProgress | Pending | Completed | InvalidStatus | Submitted
   deriving (Eq, Show)
 
--- Template para o contrato de aplicação
+
 template Application
   with
-    employee, courseParty: Party  -- Partes envolvidas: funcionário e curso
-    name, address, email: Text    -- Informações pessoais do aplicante
-    phone: Optional Text          -- Número de telefone opcional
-    timestamp: Time               -- Carimbo de data/hora da aplicação
-    status: Status                -- Status da aplicação (Novo, Em andamento, Pendente, Concluído)
-    score: Optional Int           -- Pontuação opcional da aplicação
-    comment: Optional Text       -- Comentário opcional
+    employee: Party
+    course: Party
+    name: Text
+    address: Text
+    email: Text
+    phone: Optional Text
+    timestamp: Time
+    status: Status
+    score: Optional Int
+    comment: Optional Text
   where
-    signatory employee          -- O funcionário assina o contrato
-    observer courseParty       -- O curso é observado pelo contrato
-    
-    -- Escolha para submeter uma aplicação e definir seu status
+    signatory course
+    observer employee
+
     choice SubmitApplicationAndSetStatus : ContractId Application
       with
-        newStatus: Status       -- Novo status para a aplicação
-      controller employee      -- A escolha é controlada pelo funcionário
+        newStatus: Status
+      controller employee
       do
-        create this with status = newStatus  -- Criação da aplicação com o novo status
-
--- Template para o contrato de conta
-template Account
-  with
-    employee, course: Party   -- Partes envolvidas: funcionário e curso
-    points: Int               -- Pontuação atual da conta
-    newPoints: Int            -- Novos pontos a serem adicionados
-    timestamp: Time           -- Carimbo de data/hora da transação
-  where
-    signatory course          -- O curso assina o contrato
-    observer employee         -- O funcionário é observado pelo contrato
-
-    -- Escolha para adicionar pontos à conta
-    choice AddPoints : ContractId Account
-      controller course       -- A escolha é controlada pelo curso
-      do
-        create this with points = points + newPoints  -- Adiciona os novos pontos à conta
-
--- Template para o serviço do curso
-template CourseService
-  with
-    employee: Party           -- Parte envolvida: funcionário
-    course: Party             -- Parte envolvida: curso
-  where
-    signatory course          -- O curso assina o contrato
-    observer employee         -- O funcionário é observado pelo contrato
-
-    -- Escolha para criar uma aplicação em branco
-    nonconsuming choice CreateBlankApplication : ContractId Application
-      controller employee    -- A escolha é controlada pelo funcionário
-      do
-        now <- getTime
-        -- Criação de uma aplicação em branco com os dados padrão e status "New"
-        create Application with
-          employee
-          courseParty = course
-          name = ""
-          address = ""
-          email = ""
-          phone = None
-          timestamp = now
-          status = New
-          score = None
-          comment = None
-
-    -- Escolha para completar um curso
-    choice CompleteCourse : ContractId Application
-      with
-        appId: ContractId Application  -- ID do contrato de aplicação
-        account: ContractId Account     -- ID do contrato de conta
-      controller course                -- A escolha é controlada pelo curso
-      do
-        -- Atualiza o status da aplicação para "Concluído"
-        exercise appId SubmitApplicationAndSetStatus with newStatus = Concluded
-        -- Adiciona os pontos à conta
-        exercise account AddPoints
-        return appId
-
+        create this with status = newStatus
 
