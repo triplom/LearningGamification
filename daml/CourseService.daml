@@ -7,9 +7,9 @@ import Application
 template CourseService
   with
     employee: Party
-    course: Party
+    BCPlatform: Party
   where
-    signatory course
+    signatory BCPlatform
     observer employee
 
     choice CompleteCourse : ContractId Application

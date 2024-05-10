@@ -8,7 +8,7 @@ data Status = New | InProgress | Pending | Completed | InvalidStatus | Submitted
 template Application
   with
     employee: Party
-    course: Party
+    BCPlatform: Party
     name: Text
     address: Text
     email: Text
@@ -18,7 +18,7 @@ template Application
     score: Optional Int
     comment: Optional Text
   where
-    signatory course
+    signatory BCPlatform
     observer employee
 
     choice SubmitApplicationAndSetStatus : ContractId Application
