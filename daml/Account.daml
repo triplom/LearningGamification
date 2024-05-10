@@ -5,11 +5,11 @@ template Account
   with
     parties: Party
     employee: Party
-    BCPlatform: Party
+    bcplatform: Party
     points: Int
     timestamp: Time
   where
-    signatory BCPlatform
+    signatory bcplatform
     observer employee
 
     choice AddPoints : ContractId Account

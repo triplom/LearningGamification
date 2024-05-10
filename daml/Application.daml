@@ -8,7 +8,7 @@ data Status = New | InProgress | Pending | Completed | InvalidStatus | Submitted
 template Application
   with
     employee: Party
-    BCPlatform: Party
+    bcplatform: Party
     name: Text
     address: Text
     email: Text
@@ -18,13 +18,13 @@ template Application
     score: Optional Int
     comment: Optional Text
   where
-    signatory BCPlatform
+    signatory bcplatform
     observer employee
 
     choice SubmitApplicationAndSetStatus : ContractId Application
       with
         newStatus: Status
       controller employee
-      do
-        create this with status = newStatus
+       do
+        create this with status = New
 

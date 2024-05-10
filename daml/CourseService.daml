@@ -7,16 +7,16 @@ import Application
 template CourseService
   with
     employee: Party
-    BCPlatform: Party
+    bcplatform: Party
   where
-    signatory BCPlatform
+    signatory bcplatform
     observer employee
 
     choice CompleteCourse : ContractId Application
       with
         appId: ContractId Application
         accountId: ContractId Account
-      controller course
+      controller bcplatform
       do
         app <- fetch appId
         case app.status of
