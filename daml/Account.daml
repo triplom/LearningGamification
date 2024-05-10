@@ -3,21 +3,21 @@ module Account where
 
 template Account
   with
-    parties: Party
-    employee: Party
-    bcplatform: Party
-    points: Int
-    timestamp: Time
+    employee : Party
+    bc_platform : Party
+    points : Int
+    timestamp : Time
   where
-    signatory bcplatform
+    signatory bc_platform
     observer employee
 
     choice AddPoints : ContractId Account
       with
-        newPoints: Int
+        newPoints : Int
       controller employee
       do
-        create this with points = points + newPoints
-
-
-
+        create Account with
+          employee
+          bc_platform
+          points = points + newPoints
+          timestamp

@@ -1,33 +1,190 @@
--- CourseService.daml
+
+--CourseService.daml
 module CourseService where
 
-import Account
 import Application
+import DA.Time
 
-template CourseService
+type CourseProposalId = ContractId CourseProposal
+type CourseId = ContractId Course
+
+data CourseInfo = CourseInfo with
+    lead: Party
+    title: Text
+    details: Text
+    soloCourse: Bool
+    account : Int
+    course_type: Text
+    status: Status
+    startDate: Date
+    endDate: Date
+    
+        deriving (Show, Eq)
+
+class Duration i o where
+    getDuration : i -> o
+
+instance Duration CourseInfo Int where
+    getDuration course =
+        let
+            startT: Time
+            startT = time course.startDate 09 00 00
+
+            endT: Time
+            endT = time course.endDate 18 00 00
+
+            diffInRelTime: RelTime
+            diffInRelTime = subTime endT startT
+
+            diffInDays: Int
+            diffInDays = wholeDays diffInRelTime
+
+            diffInWeekDays = diffInDays - (diffInDays/7 * 2) + 1 -- account for weekdays
+        in 
+            diffInWeekDays
+            
+template CourseProposal
   with
-    employee: Party
-    bcplatform: Party
+    employee : Party
+    bc_platform : Party
+    courseInfo: CourseInfo
+    note: Text
   where
-    signatory bcplatform
-    observer employee
+    signatory bc_platform, employee
 
-    choice CompleteCourse : ContractId Application
+    key (bc_platform, courseInfo) : (Party, CourseInfo)
+    maintainer key._1
+
+    ensure (courseInfo.startDate < courseInfo.endDate) -- endDate has to be later than startDate
+
+        -- simply returns the ContractId of the current contract without archiving anything; can be used as a reminder if the proposal doesn't get either Approved or Rejected for a while
+    nonconsuming choice Propose: CourseProposalId
+        controller employee
+        do
+          return self
+        -- bc_platform can check the list of accomplishments of the employee to see if this employee is qualified/ready take on a new Course
+    nonconsuming choice EmployeeAccomplishments: ([Text])
+        with
+            accomplishments: [(ContractId Accomplishment, Accomplishment)]
+        controller bc_platform
+        do
+          if null accomplishments then return ["N/A"]
+          else do
+           -- 1. map ver.
+               return $ map (\acc -> acc._2.course.courseInfo.title <> " : " <> acc._2.course.courseInfo.details) accomplishments
+                   
+                    -- 2. forA ver. (Avoid using "trace" in production code as it is not recommended.)
+                    -- forA accomplishments (\acc -> do
+                    --     let 
+                    --         accDetails = acc._2.Course.CourseInfo.title <> " : " <> acc._2.Course.CourseInfo.details
+                    --     trace(accDetails)(return accDetails))
+
+
+        -- bc_platform can Reject the employee with feedback
+    choice Reject: CourseProposalId
       with
-        appId: ContractId Application
-        accountId: ContractId Account
-      controller bcplatform
+          feedback: Text
+      controller bc_platform
       do
-        app <- fetch appId
-        case app.status of
-          Pending -> do
-            -- Exercitar a escolha SubmitApplicationAndSetStatus no contrato Application
-            exercise appId SubmitApplicationAndSetStatus with newStatus = Completed
-            
-            -- Exercitar a escolha AddPoints no contrato Account com um valor de pontos (por exemplo, 10)
-            let pointsToAdd = 10  -- Aqui você pode definir a quantidade de pontos a serem adicionados
-            exercise accountId (AddPoints pointsToAdd)
-            
-            -- Retornar o ContractId da Application após completar o curso
-            return appId
-          _ -> fail "Application is not in Pending status"
+         create this with
+            note = feedback
+
+        -- an example of preconsuming choice; can be a regular choice without the archive function
+        -- upon getting rejected, the original employee can Revise the CourseInfo to re-propose
+    nonconsuming choice Revise: CourseProposalId
+      with
+          newCourseInfo: CourseInfo
+          comment: Text
+      controller employee
+      do
+          assertMsg ("Course info needs to be revised")(this.courseInfo /= newCourseInfo)
+          archive self
+          create this with
+              courseInfo = newCourseInfo
+              note = comment
+     
+    -- employee can cancel the proposal
+    choice Cancel: ()
+      controller employee
+      do
+        return ()
+
+        -- bc_platform can approve the CourseProposal & create a Course contract
+    choice Approve: CourseId
+      with
+          evaluationDate: Date -- when will the Course finish
+          bc_platformNote: Optional(Text)  
+      controller bc_platform
+      do
+         assertMsg "Course should be finish before the deadline." (evaluationDate > courseInfo.endDate)
+         create Course with
+             courseInfo
+             duration = getDuration courseInfo
+             bc_platform
+             evaluationDate
+             bc_platformNote
+
+template Course
+    with
+        courseInfo: CourseInfo
+        duration: Int
+        bc_platform: Party
+        evaluationDate: Date
+        bc_platformNote: Optional(Text)
+    where
+        signatory bc_platform, courseInfo.lead 
+
+        key (courseInfo.lead, courseInfo):(Party, CourseInfo)
+        maintainer key._1
+
+        ensure evaluationDate > courseInfo.endDate
+
+        choice Evaluate: Either (ContractId Course) (ContractId Accomplishment)
+            with
+                todaysDate: Date
+                feedback: Optional(Text)
+                readyToPublish: Bool
+            controller bc_platform
+            do
+                -- 1. if ver:
+                if readyToPublish then do
+                    newAcc <- create Accomplishment with
+                        course = this
+                        bc_platform
+                    return (Right newAcc)
+                else do
+                    currCourse <- create this with 
+                        evaluationDate = todaysDate
+                        bc_platformNote = feedback
+                    return (Left currCourse)
+
+                -- 2. case ver:             
+                -- case readyToPublish of
+                --     False -> do
+                --         currCourse <- create this with
+                --             evaluationDate = todaysDate
+                --             bc_platformNote = feedback
+                --         return (Left currProj)
+                --     True -> do
+                --         newAcc <- create Accomplishment with
+                --             course = this
+                --             bc_platform
+                --         return (Right newAcc)
+
+        choice CancelCourse: ()
+            controller bc_platform, courseInfo.lead
+            do
+                return ()
+
+
+template Accomplishment
+    with
+        course: Course
+        bc_platform: Party
+    where
+        -- 1. Ensure that the signatories of a Course contract is equal to that of Accomplishment contract
+        -- 2. Prevent Accomplishment contract from being created outside the Evaluate choice
+        signatory (signatory course)
+
+        key (course.courseInfo.lead, course.courseInfo) : (Party, CourseInfo)
+        maintainer key._1

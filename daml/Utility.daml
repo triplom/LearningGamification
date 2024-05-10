@@ -10,4 +10,4 @@ makePartiesFrom names =
 -- Função para criar partidos com nomes predefinidos
 makeParties : Script [Party]
 makeParties =
-  makePartiesFrom ["Marcel", "Andre", "Natacha", "Yonara", "course"]
+  makePartiesFrom ["Marcel", "Andre", "Natacha", "Yonara", "bc_platform", "employee"]

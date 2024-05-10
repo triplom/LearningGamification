@@ -1,30 +1,41 @@
 -- Application.daml
 module Application where
 
+type ApplicationContractId = ContractId ApplicationForm
+type Phone = Text
+type Score = Int
+
 data Status = New | InProgress | Pending | Completed | InvalidStatus | Submitted
   deriving (Eq, Show)
 
-
-template Application
+template ApplicationForm
   with
-    employee: Party
-    bcplatform: Party
-    name: Text
-    address: Text
-    email: Text
-    phone: Optional Text
-    timestamp: Time
-    status: Status
-    score: Optional Int
-    comment: Optional Text
+    bc_platform : Party
+    employee : Party
+    status : Status
+    name : Text
+    address : Text
+    email : Text
+    phone : Phone
+    timestamp : Time
+    score : Score
+    comment : Optional Text
   where
-    signatory bcplatform
-    observer employee
+  signatory bc_platform, employee
 
-    choice SubmitApplicationAndSetStatus : ContractId Application
-      with
-        newStatus: Status
-      controller employee
-       do
-        create this with status = New
-
+  choice ApplicationRequestSubmitted : ApplicationContractId
+    controller bc_platform
+    do
+     now <- getTime 
+     create ApplicationForm
+       with 
+          bc_platform
+          employee
+          status = Submitted
+          timestamp = now
+          name
+          address
+          email
+          phone
+          score
+          comment
