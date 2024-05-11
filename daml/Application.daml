@@ -7,19 +7,17 @@ type ApplicationContractId = ContractId ApplicationForm
 
 -- Define type aliases for commonly used data types
 type Phone = Text
-type Amount = Decimal
+type Amount = Numeric 2
 
 -- Define a custom data type to represent the status of an application
 data Status = New | InProgress | Pending | Completed | InvalidStatus | Submitted
-  deriving (Eq, Show)
+  deriving (Show, Eq)
 
--- Define a template for an application form
-template ApplicationForm
-  with
-    -- Define the parties involved in the contract
-    bc_platform : Party  -- Party representing the blockchain platform
-    employee : Party     -- Party representing the employee
+-- Define a record type to represent information about a course
+data ApplicationInfo = ApplicationInfo with
+
     -- Attributes of the application form
+    id: Int              -- Id of the application
     status : Status      -- Status of the application
     name : Text          -- Name of the applicant
     address : Text       -- Address of the applicant
@@ -28,12 +26,22 @@ template ApplicationForm
     timestamp : Time     -- Timestamp of the application
     amount : Amount      -- Amount associated with the application
     comment : Optional Text  -- Optional comment related to the application
+        deriving (Show, Eq)
+
+-- Define a template for an application form
+template ApplicationForm
+  with
+     -- Define the parties involved in the contract
+    bc_platform : Party  -- Party representing the blockchain platform
+    employee : Party     -- Party representing the employee
+    applicationInfo: ApplicationInfo
+    
   where
   -- Parties who can sign the contract
   signatory bc_platform, employee
 
   -- Ensure that the amount associated with the application is greater than 0.0
-  ensure amount > 0.0
+  ensure applicationInfo.amount > 0.0
 
   -- Define a choice to submit the application
   choice ApplicationRequestSubmitted : ApplicationContractId
@@ -42,15 +50,8 @@ template ApplicationForm
       -- Get the current time
       now <- getTime 
       -- Create a new application form contract with the submitted status
-      create ApplicationForm
+      create ApplicationForm 
         with 
           bc_platform
           employee
-          status = Submitted
-          timestamp = now
-          name
-          address
-          email
-          phone
-          amount
-          comment
+          applicationInfo

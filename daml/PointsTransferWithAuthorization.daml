@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
 module PointsTransferWithAuthorization where
@@ -5,16 +6,19 @@ module PointsTransferWithAuthorization where
 import Daml.Script
 import Utility
 
--- Authorization contract allows more control on a choice
--- In the example below, bc_platform grants access to the newEmployee,
--- which is checked on the Accept choice to ensure he is a legitimate points employee.
+-- Define a type alias for the contract ID of a Points contract
+type PointsId = ContractId Points
+
+class Account account employeeId amount where 
+    safeQuery: account -> employeeId  -> amount
 
 -- Original contract with no changes needed.
 template Points
   with
-    employee: Party         -- Party representing the employee
+    employee: Party
+    employeeId: Int         -- Party representing the employee
     bc_platform: Party     -- Party representing the blockchain platform
-    amount: Decimal        -- Amount of points
+    amount: Numeric 2      -- Amount of points
   where
     signatory bc_platform
     signatory employee
@@ -25,24 +29,33 @@ template Points
     choice Transfer : ContractId TransferProposal
       with newEmployee: Party  -- Party representing the new employee
       controller employee
-      do create TransferProposal
-            with points=this; newEmployee
+      do create TransferProposal with points=this; newEmployee
+
+  -- Choice to check points balance
+    choice CheckPointsBalance : Numeric 2
+      controller employee
+      do 
+        return amount
+
 
 -- PointsProposal template for proposing points transfer
 template PointsProposal
   with
     employee: Party         -- Party representing the employee
+    employeeId: Int
     bc_platform: Party     -- Party representing the blockchain platform
-    amount: Decimal        -- Amount of points
+    amount: Numeric 2      -- Amount of points
   where
     signatory bc_platform
     observer employee
 
     -- Choice to accept points proposal
     choice AcceptProposal
-      : ContractId Points
+      : PointsId
       controller employee
-      do create Points with bc_platform; employee; amount
+      do create Points
+          with employee; employeeId; bc_platform; amount
+      
 
 -- Authorization contract
 template PointsOwnerAuthorization
@@ -62,8 +75,8 @@ template PointsOwnerAuthorization
 -- TransferProposal contract with additional logic to ensure the newEmployee is authorized to exercise Accept
 template TransferProposal
   with
-    points: Points              -- Points to be transferred
-    newEmployee: Party          -- Party representing the new employee
+    points: Points          -- Points to be transferred
+    newEmployee: Party      -- Party representing the new employee
   where
     signatory points.employee
     signatory points.bc_platform
@@ -71,13 +84,13 @@ template TransferProposal
 
     -- Choice to withdraw transfer
     choice WithdrawTransfer
-      : ContractId Points
+      : PointsId
       controller points.employee
       do create points
 
     -- Choice to accept points transfer
     choice AcceptTransfer
-      : ContractId Points
+      : PointsId
       with token: ContractId PointsOwnerAuthorization  -- Authorization token
       controller newEmployee
       do
@@ -86,26 +99,37 @@ template TransferProposal
         assert (newEmployee == t.employee)            -- Check if newEmployee is authorized
         create points with employee = newEmployee
 
+ 
 -- Test script
-tokenAccept : Script ()
-tokenAccept =
-  script do
-
+testpoints : Script ()
+testpoints = script do
+    -- Create parties
     [bc_platform, employee, newEmployee] <- makePartiesFrom ["Course", "Me", "You"]
 
     -- Test 1: Token is active, allowing new employee to accept
-    creatProp <- bc_platform `submit` do createCmd PointsProposal with employee; bc_platform; amount=100.0
-    pointsId <- employee `submit` do exerciseCmd creatProp AcceptProposal
-    pointsProp <- employee `submit` do exerciseCmd pointsId Transfer with newEmployee
+    creatProp <- submit bc_platform do createCmd PointsProposal with employee; bc_platform; employeeId=001;amount=100.0
+    pointsId <- submit employee do exerciseCmd creatProp AcceptProposal
+    pointsProp <- submit employee do exerciseCmd pointsId Transfer with newEmployee
 
-    tokenId <- bc_platform `submit` do createCmd PointsOwnerAuthorization with employee = newEmployee; bc_platform
-    newEmployee `submit` do exerciseCmd pointsProp AcceptTransfer with token = tokenId
+    tokenId <- submit bc_platform do createCmd PointsOwnerAuthorization with employee = newEmployee; bc_platform
+    submit newEmployee do exerciseCmd pointsProp AcceptTransfer with token = tokenId
 
     -- Test 2: Token is withdrawn before new employee accepts, hence the accept will fail
-    creatProp <- bc_platform `submit` do createCmd PointsProposal with employee; bc_platform; amount=100.0
-    pointsId <- employee `submit` do exerciseCmd creatProp AcceptProposal
-    pointsProp <- employee `submit` do exerciseCmd pointsId Transfer with newEmployee
+    creatProp <- submit bc_platform do createCmd PointsProposal with employee; employeeId=001; bc_platform; amount=100.0
+    pointsId <- submit employee do exerciseCmd creatProp AcceptProposal
+    pointsProp <- submit employee do exerciseCmd pointsId Transfer with newEmployee
 
-    tokenId <- bc_platform `submit` do createCmd PointsOwnerAuthorization with employee = newEmployee; bc_platform
-    bc_platform `submit` do exerciseCmd tokenId WithdrawAuthorization
-    newEmployee `submitMustFail` do exerciseCmd pointsProp AcceptTransfer with token = tokenId
+    tokenId <- submit bc_platform do createCmd PointsOwnerAuthorization with employee = newEmployee; bc_platform
+    submit bc_platform do exerciseCmd tokenId WithdrawAuthorization
+    submitMustFail newEmployee do exerciseCmd pointsProp AcceptTransfer with token = tokenId
+    debug "Attempted to accept transfer after withdrawal of authorization, as expected."
+
+    -- Test 3
+    let mypoints = pointsId with
+        employee = "employee"
+        bc_platform = "bc_platform"
+        amount = 0.0
+        count = amount + 100.0
+        mytotalpoints: Numeric 2 = amount + count
+    debug $ mytotalpoints
+    return ()

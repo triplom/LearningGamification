@@ -14,6 +14,7 @@ type CourseId = ContractId Course
 -- Define a record type to represent information about a course
 data CourseInfo = CourseInfo with
     lead: Party            -- Party leading the course
+    courseId: Int          -- Id of the course
     title: Text            -- Title of the course
     details: Text          -- Details/description of the course
     soloCourse: Bool       -- Indicates if it's a solo course

@@ -14,16 +14,15 @@ parties:  # List of parties involved in the project.
   - employee
   - parties
 
-version: 1.1.1  # Version number of the DAML project.
+version: 2.0.1  # Version number of the DAML project.
 
 init-scripts:  # Initialization scripts to be executed when the ledger starts.
-  - test : Script  # Test script
-  - setup : Script  # Setup script
+  - TestApplication : Script  # Application script
+  - CourseService : Script  # Course script
+  - PointsTransferWithAuthorization: Script   # Points script
 
 dependencies:  # List of dependencies required by the project.
   - daml-prim  # DAML primitive library
   - daml-stdlib  # DAML standard library
   - daml-script  # DAML script library
 
-navigator-options:  # Options for the DAML Navigator (IDE)
-  - --feature-user-management=false  # Disables the user management feature in the DAML Navigator.
