@@ -1,30 +1,56 @@
 -- Application.daml
+
 module Application where
 
+-- Define a type alias for the contract ID of an application form
+type ApplicationContractId = ContractId ApplicationForm
+
+-- Define type aliases for commonly used data types
+type Phone = Text
+type Amount = Decimal
+
+-- Define a custom data type to represent the status of an application
 data Status = New | InProgress | Pending | Completed | InvalidStatus | Submitted
   deriving (Eq, Show)
 
-
-template Application
+-- Define a template for an application form
+template ApplicationForm
   with
-    employee: Party
-    course: Party
-    name: Text
-    address: Text
-    email: Text
-    phone: Optional Text
-    timestamp: Time
-    status: Status
-    score: Optional Int
-    comment: Optional Text
+    -- Define the parties involved in the contract
+    bc_platform : Party  -- Party representing the blockchain platform
+    employee : Party     -- Party representing the employee
+    -- Attributes of the application form
+    status : Status      -- Status of the application
+    name : Text          -- Name of the applicant
+    address : Text       -- Address of the applicant
+    email : Text         -- Email of the applicant
+    phone : Phone        -- Phone number of the applicant
+    timestamp : Time     -- Timestamp of the application
+    amount : Amount      -- Amount associated with the application
+    comment : Optional Text  -- Optional comment related to the application
   where
-    signatory course
-    observer employee
+  -- Parties who can sign the contract
+  signatory bc_platform, employee
 
-    choice SubmitApplicationAndSetStatus : ContractId Application
-      with
-        newStatus: Status
-      controller employee
-      do
-        create this with status = newStatus
+  -- Ensure that the amount associated with the application is greater than 0.0
+  ensure amount > 0.0
 
+  -- Define a choice to submit the application
+  choice ApplicationRequestSubmitted : ApplicationContractId
+    controller bc_platform  -- Only the bc_platform party can control this choice
+    do
+      -- Get the current time
+      now <- getTime 
+      -- Create a new application form contract with the submitted status
+      create ApplicationForm
+        with 
+          bc_platform
+          employee
+          status = Submitted
+          timestamp = now
+          name
+          address
+          email
+          phone
+          amount
+          comment

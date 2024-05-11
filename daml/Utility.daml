@@ -1,13 +1,13 @@
 module Utility where
 
-import Daml.Script
+import Daml.Script  -- Importing Daml.Script module
 
--- Função para criar partidos a partir de uma lista de nomes
+-- Function to create parties from a list of names
 makePartiesFrom : [Text] -> Script [Party]
 makePartiesFrom names = 
-  mapA allocateParty names  -- Mapeia a função allocateParty para cada nome na lista e retorna uma lista de partidos
+  mapA allocateParty names  -- Maps the allocateParty function to each name in the list and returns a list of parties
 
--- Função para criar partidos com nomes predefinidos
+-- Function to create parties with predefined names
 makeParties : Script [Party]
 makeParties =
-  makePartiesFrom ["Marcel", "Andre", "Natacha", "Yonara", "course"]
+  makePartiesFrom ["Marcel", "Andre", "Natacha", "Yonara", "bc_platform", "employee"]
