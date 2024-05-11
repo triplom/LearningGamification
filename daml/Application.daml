@@ -32,26 +32,26 @@ data ApplicationInfo = ApplicationInfo with
 template ApplicationForm
   with
      -- Define the parties involved in the contract
-    bc_platform : Party  -- Party representing the blockchain platform
+    bcplatform : Party  -- Party representing the blockchain platform
     employee : Party     -- Party representing the employee
     applicationInfo: ApplicationInfo
     
   where
   -- Parties who can sign the contract
-  signatory bc_platform, employee
+  signatory bcplatform, employee
 
   -- Ensure that the amount associated with the application is greater than 0.0
   ensure applicationInfo.amount > 0.0
 
   -- Define a choice to submit the application
   choice ApplicationRequestSubmitted : ApplicationContractId
-    controller bc_platform  -- Only the bc_platform party can control this choice
+    controller bcplatform  -- Only the bcplatform party can control this choice
     do
       -- Get the current time
       now <- getTime 
       -- Create a new application form contract with the submitted status
       create ApplicationForm 
         with 
-          bc_platform
+          bcplatform
           employee
           applicationInfo

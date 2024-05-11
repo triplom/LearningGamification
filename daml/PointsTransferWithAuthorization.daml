@@ -1,3 +1,4 @@
+
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
@@ -6,130 +7,87 @@ module PointsTransferWithAuthorization where
 import Daml.Script
 import Utility
 
--- Define a type alias for the contract ID of a Points contract
-type PointsId = ContractId Points
-
-class Account account employeeId amount where 
-    safeQuery: account -> employeeId  -> amount
-
--- Original contract with no changes needed.
+-- Points contract
 template Points
   with
     employee: Party
     employeeId: Int         -- Party representing the employee
-    bc_platform: Party     -- Party representing the blockchain platform
+    bcPlatform: Party     -- Party representing the blockchain platform
     amount: Numeric 2      -- Amount of points
+    
   where
-    signatory bc_platform
-    signatory employee
+    signatory bcPlatform, employee
 
     ensure amount > 0.0
 
     -- Choice to transfer points
-    choice Transfer : ContractId TransferProposal
+    choice Transfer : ContractId TransferRequest
       with newEmployee: Party  -- Party representing the new employee
+           amount: Points
       controller employee
-      do create TransferProposal with points=this; newEmployee
+      do create TransferRequest with points; amount; newEmployee
 
-  -- Choice to check points balance
-    choice CheckPointsBalance : Numeric 2
+    -- Choice to check points balance
+    choice CheckPointsBalance : ContractId Points
       controller employee
-      do 
-        return amount
+      do return this 
 
-
--- PointsProposal template for proposing points transfer
-template PointsProposal
-  with
-    employee: Party         -- Party representing the employee
-    employeeId: Int
-    bc_platform: Party     -- Party representing the blockchain platform
-    amount: Numeric 2      -- Amount of points
-  where
-    signatory bc_platform
-    observer employee
-
-    -- Choice to accept points proposal
-    choice AcceptProposal
-      : PointsId
-      controller employee
-      do create Points
-          with employee; employeeId; bc_platform; amount
-      
-
--- Authorization contract
-template PointsOwnerAuthorization
-  with
-    employee: Party         -- Party representing the employee
-    bc_platform: Party     -- Party representing the blockchain platform
-  where
-    signatory bc_platform
-    observer employee
-
-    -- Choice to withdraw authorization
-    choice WithdrawAuthorization
-      : ()
-      controller bc_platform
-      do return ()
-
--- TransferProposal contract with additional logic to ensure the newEmployee is authorized to exercise Accept
-template TransferProposal
+-- TransferRequest contract
+template TransferRequest
   with
     points: Points          -- Points to be transferred
     newEmployee: Party      -- Party representing the new employee
   where
     signatory points.employee
-    signatory points.bc_platform
+    signatory points.bcPlatform
     observer newEmployee
 
     -- Choice to withdraw transfer
-    choice WithdrawTransfer
-      : PointsId
+    choice WithdrawTransfer : ContractId Points
       controller points.employee
       do create points
 
     -- Choice to accept points transfer
-    choice AcceptTransfer
-      : PointsId
-      with token: ContractId PointsOwnerAuthorization  -- Authorization token
+    choice AcceptTransfer : ContractId Points
+      with token: ContractId CheckPointsBalance
       controller newEmployee
       do
         t <- fetch token
-        assert (points.bc_platform == t.bc_platform)  -- Check if bc_platform matches
-        assert (newEmployee == t.employee)            -- Check if newEmployee is authorized
-        create points with employee = newEmployee
+        assert (points.bcPlatform == t.bcPlatform)  -- Check if bcplatform matches
+        assert (newEmployee == t.employee)          -- Check if newEmployee is authorized
+        create Points with employee = newEmployee, employeeId = points.employeeId, bcPlatform = points.bcPlatform, amount = t.amount
 
- 
--- Test script
-testpoints : Script ()
-testpoints = script do
-    -- Create parties
-    [bc_platform, employee, newEmployee] <- makePartiesFrom ["Course", "Me", "You"]
+-- AuthorizationPoints contract
+template AuthorizationPoints
+  with
+    employee: Party         -- Party representing the employee
+    bcPlatform: Party     -- Party representing the blockchain platform
+  where
+    signatory bcPlatform
+    observer employee
 
-    -- Test 1: Token is active, allowing new employee to accept
-    creatProp <- submit bc_platform do createCmd PointsProposal with employee; bc_platform; employeeId=001;amount=100.0
-    pointsId <- submit employee do exerciseCmd creatProp AcceptProposal
-    pointsProp <- submit employee do exerciseCmd pointsId Transfer with newEmployee
+    -- Choice to withdraw authorization
+    choice WithdrawAuthorization
+      : ()
+      controller bcPlatform
+      do return ()
 
-    tokenId <- submit bc_platform do createCmd PointsOwnerAuthorization with employee = newEmployee; bc_platform
-    submit newEmployee do exerciseCmd pointsProp AcceptTransfer with token = tokenId
+-- RedeemPoints contract
+template RedeemPoints
+  with
+    employee: Party         -- Party representing the employee
+    bcPlatform: Party     -- Party representing the blockchain platform
+    pointsToRedeem: Numeric 2   -- Amount of points to redeem
+  where
+    signatory bcPlatform
+    observer employee
 
-    -- Test 2: Token is withdrawn before new employee accepts, hence the accept will fail
-    creatProp <- submit bc_platform do createCmd PointsProposal with employee; employeeId=001; bc_platform; amount=100.0
-    pointsId <- submit employee do exerciseCmd creatProp AcceptProposal
-    pointsProp <- submit employee do exerciseCmd pointsId Transfer with newEmployee
-
-    tokenId <- submit bc_platform do createCmd PointsOwnerAuthorization with employee = newEmployee; bc_platform
-    submit bc_platform do exerciseCmd tokenId WithdrawAuthorization
-    submitMustFail newEmployee do exerciseCmd pointsProp AcceptTransfer with token = tokenId
-    debug "Attempted to accept transfer after withdrawal of authorization, as expected."
-
-    -- Test 3
-    let mypoints = pointsId with
-        employee = "employee"
-        bc_platform = "bc_platform"
-        amount = 0.0
-        count = amount + 100.0
-        mytotalpoints: Numeric 2 = amount + count
-    debug $ mytotalpoints
-    return ()
+-- Choice to redeem points
+    choice Redeem: ContractId Points  -- Points to redeem from
+      with
+        pointsToRedeem: ContractId Points
+      controller employee
+      do
+        pointsContract <- fetch pointsToRedeem
+        assert (pointsContract.amount >= pointsToRedeem.amount)  -- Check if enough points available for redemption
+        create pointsContract with amount = pointsContract.amount - pointsToRedeem.amount
