@@ -1,29 +1,34 @@
+-- CourseService.daml
 
---CourseService.daml
 module CourseService where
 
+-- Import necessary modules
 import Application
 import DA.Time
+import PointsTransferWithAuthorization
 
+-- Define type aliases for contract IDs
 type CourseProposalId = ContractId CourseProposal
 type CourseId = ContractId Course
 
+-- Define a record type to represent information about a course
 data CourseInfo = CourseInfo with
-    lead: Party
-    title: Text
-    details: Text
-    soloCourse: Bool
-    account : Int
-    course_type: Text
-    status: Status
-    startDate: Date
-    endDate: Date
-    
+    lead: Party            -- Party leading the course
+    title: Text            -- Title of the course
+    details: Text          -- Details/description of the course
+    soloCourse: Bool       -- Indicates if it's a solo course
+    account : Int          -- Account information for the course
+    course_type: Text      -- Type of the course
+    status: Status         -- Status of the course
+    startDate: Date        -- Start date of the course
+    endDate: Date          -- End date of the course
         deriving (Show, Eq)
 
+-- Define a typeclass for calculating duration
 class Duration i o where
     getDuration : i -> o
 
+-- Implement Duration for CourseInfo to Int
 instance Duration CourseInfo Int where
     getDuration course =
         let
@@ -39,30 +44,34 @@ instance Duration CourseInfo Int where
             diffInDays: Int
             diffInDays = wholeDays diffInRelTime
 
-            diffInWeekDays = diffInDays - (diffInDays/7 * 2) + 1 -- account for weekdays
+            diffInWeekDays = diffInDays - (diffInDays/7 * 2) + 1  -- Account for weekdays
         in 
             diffInWeekDays
-            
+
+-- Define a template for a course proposal
 template CourseProposal
   with
-    employee : Party
-    bc_platform : Party
-    courseInfo: CourseInfo
-    note: Text
+    employee : Party            -- Employee proposing the course
+    bc_platform : Party         -- Party representing the blockchain platform
+    courseInfo: CourseInfo      -- Information about the course
+    note: Text                  -- Additional notes/comments
   where
-    signatory bc_platform, employee
+    signatory bc_platform, employee  -- Parties who can sign the contract
 
+    -- Define a key based on bc_platform and courseInfo
     key (bc_platform, courseInfo) : (Party, CourseInfo)
     maintainer key._1
 
-    ensure (courseInfo.startDate < courseInfo.endDate) -- endDate has to be later than startDate
+    -- Ensure that the end date is later than the start date
+    ensure (courseInfo.startDate < courseInfo.endDate)
 
-        -- simply returns the ContractId of the current contract without archiving anything; can be used as a reminder if the proposal doesn't get either Approved or Rejected for a while
+    -- Non-consuming choice to propose a course
     nonconsuming choice Propose: CourseProposalId
         controller employee
         do
           return self
-        -- bc_platform can check the list of accomplishments of the employee to see if this employee is qualified/ready take on a new Course
+
+    -- Non-consuming choice for bc_platform to check employee accomplishments
     nonconsuming choice EmployeeAccomplishments: ([Text])
         with
             accomplishments: [(ContractId Accomplishment, Accomplishment)]
@@ -70,17 +79,10 @@ template CourseProposal
         do
           if null accomplishments then return ["N/A"]
           else do
-           -- 1. map ver.
-               return $ map (\acc -> acc._2.course.courseInfo.title <> " : " <> acc._2.course.courseInfo.details) accomplishments
-                   
-                    -- 2. forA ver. (Avoid using "trace" in production code as it is not recommended.)
-                    -- forA accomplishments (\acc -> do
-                    --     let 
-                    --         accDetails = acc._2.Course.CourseInfo.title <> " : " <> acc._2.Course.CourseInfo.details
-                    --     trace(accDetails)(return accDetails))
+            -- Return a list of course titles and details from accomplishments
+            return $ map (\acc -> acc._2.course.courseInfo.title <> " : " <> acc._2.course.courseInfo.details) accomplishments
 
-
-        -- bc_platform can Reject the employee with feedback
+    -- Choice for bc_platform to reject a course proposal
     choice Reject: CourseProposalId
       with
           feedback: Text
@@ -89,8 +91,7 @@ template CourseProposal
          create this with
             note = feedback
 
-        -- an example of preconsuming choice; can be a regular choice without the archive function
-        -- upon getting rejected, the original employee can Revise the CourseInfo to re-propose
+    -- Non-consuming choice for employee to revise a course proposal
     nonconsuming choice Revise: CourseProposalId
       with
           newCourseInfo: CourseInfo
@@ -103,20 +104,20 @@ template CourseProposal
               courseInfo = newCourseInfo
               note = comment
      
-    -- employee can cancel the proposal
+    -- Choice for employee to cancel the proposal
     choice Cancel: ()
       controller employee
       do
         return ()
 
-        -- bc_platform can approve the CourseProposal & create a Course contract
+    -- Choice for bc_platform to approve the course proposal and create a course contract
     choice Approve: CourseId
       with
-          evaluationDate: Date -- when will the Course finish
-          bc_platformNote: Optional(Text)  
+          evaluationDate: Date        -- Date when the course evaluation will be completed
+          bc_platformNote: Optional(Text)  -- Optional note from bc_platform
       controller bc_platform
       do
-         assertMsg "Course should be finish before the deadline." (evaluationDate > courseInfo.endDate)
+         assertMsg "Course should be finished before the deadline." (evaluationDate > courseInfo.endDate)
          create Course with
              courseInfo
              duration = getDuration courseInfo
@@ -124,33 +125,38 @@ template CourseProposal
              evaluationDate
              bc_platformNote
 
+-- Define a template for a course
 template Course
     with
-        courseInfo: CourseInfo
-        duration: Int
-        bc_platform: Party
-        evaluationDate: Date
-        bc_platformNote: Optional(Text)
+        courseInfo: CourseInfo      -- Information about the course
+        duration: Int               -- Duration of the course
+        bc_platform: Party          -- Party representing the blockchain platform
+        evaluationDate: Date       -- Date of course evaluation
+        bc_platformNote: Optional(Text)  -- Optional note from bc_platform
     where
-        signatory bc_platform, courseInfo.lead 
+        signatory bc_platform, courseInfo.lead  -- Parties who can sign the contract
 
+        -- Define a key based on lead and courseInfo
         key (courseInfo.lead, courseInfo):(Party, CourseInfo)
         maintainer key._1
 
+        -- Ensure evaluationDate is after endDate
         ensure evaluationDate > courseInfo.endDate
 
+        -- Choice for bc_platform to evaluate a course
         choice Evaluate: Either (ContractId Course) (ContractId Accomplishment)
             with
-                todaysDate: Date
-                feedback: Optional(Text)
-                readyToPublish: Bool
+                todaysDate: Date            -- Current date
+                feedback: Optional(Text)   -- Optional feedback
+                readyToPublish: Bool       -- Indicates if course is ready to be published
+                points: Points             -- Points associated with the course
             controller bc_platform
             do
-                -- 1. if ver:
+                -- If readyToPublish, create an accomplishment contract; otherwise, update evaluation date and note
                 if readyToPublish then do
                     newAcc <- create Accomplishment with
                         course = this
-                        bc_platform
+                        bc_platform, points
                     return (Right newAcc)
                 else do
                     currCourse <- create this with 
@@ -158,33 +164,22 @@ template Course
                         bc_platformNote = feedback
                     return (Left currCourse)
 
-                -- 2. case ver:             
-                -- case readyToPublish of
-                --     False -> do
-                --         currCourse <- create this with
-                --             evaluationDate = todaysDate
-                --             bc_platformNote = feedback
-                --         return (Left currProj)
-                --     True -> do
-                --         newAcc <- create Accomplishment with
-                --             course = this
-                --             bc_platform
-                --         return (Right newAcc)
-
+        -- Choice for bc_platform or course lead to cancel a course
         choice CancelCourse: ()
             controller bc_platform, courseInfo.lead
             do
                 return ()
 
-
+-- Define a template for an accomplishment
 template Accomplishment
     with
-        course: Course
-        bc_platform: Party
+        course: Course              -- Course associated with the accomplishment
+        bc_platform: Party         -- Party representing the blockchain platform
+        points: Points             -- Points associated with the accomplishment
     where
-        -- 1. Ensure that the signatories of a Course contract is equal to that of Accomplishment contract
-        -- 2. Prevent Accomplishment contract from being created outside the Evaluate choice
+        -- Ensure signatories of Accomplishment match those of Course
         signatory (signatory course)
 
+        -- Define a key based on lead and courseInfo of Course
         key (course.courseInfo.lead, course.courseInfo) : (Party, CourseInfo)
         maintainer key._1

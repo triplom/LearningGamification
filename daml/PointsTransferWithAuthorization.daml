@@ -1,0 +1,111 @@
+{-# LANGUAGE PartialTypeSignatures #-}
+
+module PointsTransferWithAuthorization where
+
+import Daml.Script
+import Utility
+
+-- Authorization contract allows more control on a choice
+-- In the example below, bc_platform grants access to the newEmployee,
+-- which is checked on the Accept choice to ensure he is a legitimate points employee.
+
+-- Original contract with no changes needed.
+template Points
+  with
+    employee: Party         -- Party representing the employee
+    bc_platform: Party     -- Party representing the blockchain platform
+    amount: Decimal        -- Amount of points
+  where
+    signatory bc_platform
+    signatory employee
+
+    ensure amount > 0.0
+
+    -- Choice to transfer points
+    choice Transfer : ContractId TransferProposal
+      with newEmployee: Party  -- Party representing the new employee
+      controller employee
+      do create TransferProposal
+            with points=this; newEmployee
+
+-- PointsProposal template for proposing points transfer
+template PointsProposal
+  with
+    employee: Party         -- Party representing the employee
+    bc_platform: Party     -- Party representing the blockchain platform
+    amount: Decimal        -- Amount of points
+  where
+    signatory bc_platform
+    observer employee
+
+    -- Choice to accept points proposal
+    choice AcceptProposal
+      : ContractId Points
+      controller employee
+      do create Points with bc_platform; employee; amount
+
+-- Authorization contract
+template PointsOwnerAuthorization
+  with
+    employee: Party         -- Party representing the employee
+    bc_platform: Party     -- Party representing the blockchain platform
+  where
+    signatory bc_platform
+    observer employee
+
+    -- Choice to withdraw authorization
+    choice WithdrawAuthorization
+      : ()
+      controller bc_platform
+      do return ()
+
+-- TransferProposal contract with additional logic to ensure the newEmployee is authorized to exercise Accept
+template TransferProposal
+  with
+    points: Points              -- Points to be transferred
+    newEmployee: Party          -- Party representing the new employee
+  where
+    signatory points.employee
+    signatory points.bc_platform
+    observer newEmployee
+
+    -- Choice to withdraw transfer
+    choice WithdrawTransfer
+      : ContractId Points
+      controller points.employee
+      do create points
+
+    -- Choice to accept points transfer
+    choice AcceptTransfer
+      : ContractId Points
+      with token: ContractId PointsOwnerAuthorization  -- Authorization token
+      controller newEmployee
+      do
+        t <- fetch token
+        assert (points.bc_platform == t.bc_platform)  -- Check if bc_platform matches
+        assert (newEmployee == t.employee)            -- Check if newEmployee is authorized
+        create points with employee = newEmployee
+
+-- Test script
+tokenAccept : Script ()
+tokenAccept =
+  script do
+
+    [bc_platform, employee, newEmployee] <- makePartiesFrom ["Course", "Me", "You"]
+
+    -- Test 1: Token is active, allowing new employee to accept
+    creatProp <- bc_platform `submit` do createCmd PointsProposal with employee; bc_platform; amount=100.0
+    pointsId <- employee `submit` do exerciseCmd creatProp AcceptProposal
+    pointsProp <- employee `submit` do exerciseCmd pointsId Transfer with newEmployee
+
+    tokenId <- bc_platform `submit` do createCmd PointsOwnerAuthorization with employee = newEmployee; bc_platform
+    newEmployee `submit` do exerciseCmd pointsProp AcceptTransfer with token = tokenId
+
+    -- Test 2: Token is withdrawn before new employee accepts, hence the accept will fail
+    creatProp <- bc_platform `submit` do createCmd PointsProposal with employee; bc_platform; amount=100.0
+    pointsId <- employee `submit` do exerciseCmd creatProp AcceptProposal
+    pointsProp <- employee `submit` do exerciseCmd pointsId Transfer with newEmployee
+
+    tokenId <- bc_platform `submit` do createCmd PointsOwnerAuthorization with employee = newEmployee; bc_platform
+    bc_platform `submit` do exerciseCmd tokenId WithdrawAuthorization
+    newEmployee `submitMustFail` do exerciseCmd pointsProp AcceptTransfer with token = tokenId

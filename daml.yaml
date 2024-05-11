@@ -1,8 +1,10 @@
-sdk-version: 2.8.5
-name: LearningGamification
-source: daml
+sdk-version: 2.8.5  # Specifies the DAML SDK version used for the project.
 
-parties:
+name: LearningGamification  # Name of the DAML project.
+
+source: daml  # Specifies the source directory for DAML files.
+
+parties:  # List of parties involved in the project.
   - Marcel
   - blockchain_coding
   - Andre
@@ -12,16 +14,16 @@ parties:
   - employee
   - parties
 
-version: 1.1.1
+version: 1.1.1  # Version number of the DAML project.
 
-init-scripts: 
-  - test : Script
-  - setup : Script
+init-scripts:  # Initialization scripts to be executed when the ledger starts.
+  - test : Script  # Test script
+  - setup : Script  # Setup script
 
-dependencies:
-  - daml-prim
-  - daml-stdlib
-  - daml-script
+dependencies:  # List of dependencies required by the project.
+  - daml-prim  # DAML primitive library
+  - daml-stdlib  # DAML standard library
+  - daml-script  # DAML script library
 
-navigator-options:
-  - --feature-user-management=false
+navigator-options:  # Options for the DAML Navigator (IDE)
+  - --feature-user-management=false  # Disables the user management feature in the DAML Navigator.
