@@ -4,19 +4,18 @@
 
 
 module PointsCommitment where
-
 import PointsIssuance
 
---owner can commit to lock. Once he commits, the original points is archived.
+--bcplatform can commit to lock. Once he commits, the original points is archived.
 -- BEGIN_POINTS_COMMITMENT_TEMPLATE_DATATYPE
 template PointsCommitment
   with
-    owner: Party
-    issuer: Party
-    amount: Decimal
+    bcplatform: Party
+    employee: Party
+    amount: Numeric 2
    where
-    signatory issuer
-    observer owner
+    signatory employee
+    observer bcplatform
 -- END_POINTS_COMMITMENT_TEMPLATE_DATATYPE
 
 -- BEGIN_POINTS_COMMITMENT_TEMPLATE_LOCK_POINTS
@@ -25,17 +24,17 @@ template PointsCommitment
       with pointsCid: ContractId Points
            maturity: Time
            locker: Party
-      controller owner
+      controller bcplatform
       do
         inputPoints <- fetch pointsCid
-        assert (inputPoints.owner == owner && inputPoints.issuer == issuer && inputPoints.amount == amount )
-        --the original points firstly transferred to issuer and then archived
-        prop <- exercise pointsCid Transfer with newOwner = issuer
+        assert (inputPoints.bcplatform == bcplatform && inputPoints.employee == employee && inputPoints.amount == amount )
+        --the original points firstly transferred to employee and then archived
+        prop <- exercise pointsCid Transfer with newEmployee = employee
         do
           id <- exercise prop AcceptTransfer
           exercise id Archives
         --create a lockedPoints to represent the points in locked state
         create LockedPoints with
-          points=inputPoints with owner; issuer; amount
+          points=inputPoints with bcplatform; employee; amount
           maturity; locker
 -- END_POINTS_COMMITMENT_TEMPLATE_LOCK_POINTS

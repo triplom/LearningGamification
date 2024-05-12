@@ -5,7 +5,7 @@ module CourseService where
 -- Import necessary modules
 import Application
 import DA.Time
-import PointsTransferWithAuthorization
+import PointsIssuance
 
 -- Define type aliases for contract IDs
 type CourseProposalId = ContractId CourseProposal

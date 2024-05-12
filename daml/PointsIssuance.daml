@@ -6,8 +6,6 @@ import Daml.Script
 import DA.Time
 import Utility
 
--- Define a type alias for the contract ID of a Points contract
-type PointsId = ContractId Points
 
 -- PointsMaster template for initiating points issuance
 template PointsMaster
