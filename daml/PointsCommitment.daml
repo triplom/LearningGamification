@@ -1,0 +1,41 @@
+-- PointsCommitment.daml
+
+{-# LANGUAGE PartialTypeSignatures #-}
+
+
+module PointsCommitment where
+
+import PointsIssuance
+
+--owner can commit to lock. Once he commits, the original points is archived.
+-- BEGIN_POINTS_COMMITMENT_TEMPLATE_DATATYPE
+template PointsCommitment
+  with
+    owner: Party
+    issuer: Party
+    amount: Decimal
+   where
+    signatory issuer
+    observer owner
+-- END_POINTS_COMMITMENT_TEMPLATE_DATATYPE
+
+-- BEGIN_POINTS_COMMITMENT_TEMPLATE_LOCK_POINTS
+    nonconsuming choice LockPoints
+      : ContractId LockedPoints
+      with pointsCid: ContractId Points
+           maturity: Time
+           locker: Party
+      controller owner
+      do
+        inputPoints <- fetch pointsCid
+        assert (inputPoints.owner == owner && inputPoints.issuer == issuer && inputPoints.amount == amount )
+        --the original points firstly transferred to issuer and then archived
+        prop <- exercise pointsCid Transfer with newOwner = issuer
+        do
+          id <- exercise prop AcceptTransfer
+          exercise id Archives
+        --create a lockedPoints to represent the points in locked state
+        create LockedPoints with
+          points=inputPoints with owner; issuer; amount
+          maturity; locker
+-- END_POINTS_COMMITMENT_TEMPLATE_LOCK_POINTS

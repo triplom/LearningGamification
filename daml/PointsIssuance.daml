@@ -1,0 +1,162 @@
+-- PointsIssuance.daml
+
+module PointsIssuance where
+
+import Daml.Script
+import DA.Time
+import Utility
+
+-- Define a type alias for the contract ID of a Points contract
+type PointsId = ContractId Points
+
+-- PointsMaster template for initiating points issuance
+template PointsMaster
+  with
+    bcplatform: Party
+  where
+    signatory bcplatform
+
+    nonconsuming choice Invite : ContractId PointsIssueProposal
+      with employee: Party
+      controller bcplatform
+      do create PointsIssueProposal with pointsAgreement = PointsIssueAgreement with bcplatform; employee
+
+-- PointsIssueProposal template for accepting points issuance proposal
+template PointsIssueProposal
+  with
+    pointsAgreement: PointsIssueAgreement
+  where
+    signatory pointsAgreement.bcplatform
+    observer pointsAgreement.employee
+
+    choice AcceptPointsProposal
+      : ContractId PointsIssueAgreement
+      controller pointsAgreement.employee
+      do create pointsAgreement
+
+-- PointsIssueAgreement template representing an agreement for points issuance
+template PointsIssueAgreement
+  with
+    bcplatform: Party
+    employee: Party
+  where
+    signatory bcplatform, employee
+
+    nonconsuming choice Issue : ContractId Points
+      with amount: Numeric 2
+      controller bcplatform
+      do create Points with bcplatform; employee; amount; delegates = []
+
+-- Points template representing issued points
+template Points
+  with
+    employee: Party
+    bcplatform: Party
+    amount: Numeric 2 
+    delegates : [Party]
+  where
+    signatory bcplatform, employee
+    observer delegates
+
+    choice Transfer : ContractId TransferProposal
+      with newEmployee: Party
+      controller employee
+      do create TransferProposal with points=this; newEmployee
+
+    choice Lock : ContractId LockedPoints
+      with maturity: Time; locker: Party
+      controller employee
+      do create LockedPoints with points=this; maturity; locker
+
+    choice Disclose : ContractId Points
+      with p : Party
+      controller employee
+      do create this with delegates = p :: delegates
+
+    choice Archives
+      : ()
+      controller bcplatform
+      do assert (bcplatform == employee)
+
+-- LockedPoints template representing points locked for a certain period
+template LockedPoints
+  with
+    points: Points
+    maturity: Time
+    locker: Party
+  where
+    signatory points.bcplatform, points.employee
+    observer locker
+
+    choice Unlock
+      : ContractId Points
+      controller locker
+      do create points
+
+    choice Clawback
+      : ContractId Points
+      controller points.employee
+      do
+        currTime <- getTime
+        assert (currTime >= maturity)
+        create points
+
+-- TransferProposal template representing a proposal to transfer points
+template TransferProposal
+  with
+    points: Points
+    newEmployee: Party
+  where
+    signatory points.employee, points.bcplatform
+    observer newEmployee
+
+    choice WithdrawProposal
+      : ContractId Points
+      controller points.employee
+      do create points
+
+    choice AcceptTransfer
+      : ContractId Points
+      controller newEmployee
+      do create points with employee = newEmployee
+
+    choice RejectTransfer
+      : ()
+      controller newEmployee
+      do return ()
+
+createPoints : Party -> Party -> Numeric 2 -> Script (ContractId Points)
+createPoints bcplatform employee amount =
+  do
+    masterId <- bcplatform `submit` createCmd PointsMaster with bcplatform
+    pointsAgmProp <- bcplatform `submit` exerciseCmd masterId Invite with employee
+    pointsAgmId <- employee `submit` exerciseCmd pointsAgmProp AcceptPointsProposal
+    bcplatform `submit` exerciseCmd pointsAgmId Issue with amount
+
+pointsIssuance : Script (ContractId TransferProposal)
+pointsIssuance =
+  script
+    do
+      [bcplatform, employee, newEmployee] <- makePartiesFrom ["Course", "Me", "You"]
+      
+      now <- getTime
+
+      -- Initiate points issuance
+      masterId <- bcplatform `submit` createCmd PointsMaster with bcplatform
+      pointsAgmProp <- bcplatform `submit` exerciseCmd masterId Invite with employee
+      pointsAgmId <- employee `submit` exerciseCmd pointsAgmProp AcceptPointsProposal
+      pointsId <- bcplatform `submit` exerciseCmd pointsAgmId Issue with amount = 100.0
+
+      -- Points transfer test
+      pointsTransferPropId <- employee `submit` exerciseCmd pointsId Transfer with newEmployee
+      pointsId <- newEmployee `submit` exerciseCmd pointsTransferPropId AcceptTransfer
+
+      -- Points lock test
+      lockedPointsId <- newEmployee `submit` exerciseCmd pointsId Lock with maturity= (addRelTime now (days 2)); locker=bcplatform
+
+      -- Attempt to clawback locked points before maturity
+      newEmployee `submitMustFail` do exerciseCmd lockedPointsId Clawback
+
+      -- Unlock locked points after maturity
+      unlockedPoints <- bcplatform `submit` exerciseCmd lockedPointsId Unlock
+      newEmployee `submit` exerciseCmd unlockedPoints Transfer with newEmployee=employee

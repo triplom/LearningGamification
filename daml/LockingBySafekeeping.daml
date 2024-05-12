@@ -1,0 +1,94 @@
+-- LockingBySafekeeping.daml
+
+module LockingBySafekeeping where
+
+import Daml.Script
+
+import PointsIssuance
+import Utility
+import DA.Time
+
+data LockResult = LockResult {
+  pointsCid : ContractId Points;
+  lockCid : ContractId LockedPointsV2
+}
+
+-- BEGIN_LOCKED_POINTS_V2_TEMPLATE
+template LockedPointsV2
+  with
+    points: Points
+    maturity: Time
+    locker: Party
+  where
+    signatory locker, points.owner
+
+    choice UnlockV2
+      : ContractId Points
+      with pointsCid : ContractId Points
+      controller locker
+      do
+        inputPoints <- fetch pointsCid
+        assert (inputPoints.owner == locker)
+        tpCid <- exercise pointsCid Transfer with newOwner = points.owner
+        exercise tpCid AcceptTransfer
+
+    choice ClawbackV2
+      : ContractId Points
+      with pointsCid : ContractId Points
+      controller points.owner
+      do
+        currTime <- getTime
+        assert (currTime >= maturity)
+        inputPoints <- fetch pointsCid
+        assert (inputPoints == points with owner=locker)
+        tpCid <- exercise pointsCid Transfer with newOwner = points.owner
+        exercise tpCid AcceptTransfer
+-- END_LOCKED_POINTS_V2_TEMPLATE
+
+-- BEGIN_LOCK_REQUEST_TEMPLATE
+template LockRequest
+  with
+    locker: Party
+    maturity: Time
+    points: Points
+  where
+    signatory locker
+    observer points.owner
+
+    choice Accept : LockResult
+      with pointsCid : ContractId Points
+      controller points.owner
+      do
+        inputPoints <- fetch pointsCid
+        assert (inputPoints == points)
+        tpCid <- exercise pointsCid Transfer with newOwner = locker
+        pointsCid <- exercise tpCid AcceptTransfer
+        lockCid <- create LockedPointsV2 with locker; maturity; points
+        return LockResult {pointsCid; lockCid}
+-- END_LOCK_REQUEST_TEMPLATE
+
+
+locking : Script (ContractId Points)  -- test
+locking =
+  script do
+
+    [issuer, owner, newOwner, locker] <- makePartiesFrom ["Course", "Me", "You", "Custodian Course"]
+
+    passTime (days 0)
+    now <- getTime
+
+   --when points is created, owner = locker. it is unlocked
+    pointsId <- createPoints issuer owner 100.0
+
+    Some points <- issuer `queryContractId` pointsId
+    lockRequestCid <- locker `submit` do
+      createCmd LockRequest with locker; maturity= (addRelTime now (days 2)); points
+    lockResult <- owner `submit` do exerciseCmd lockRequestCid Accept with pointsCid = pointsId
+
+    --since it is locked and maturity time hasn't elapsed yet, owner cannot clawback
+    owner `submitMustFail` do exerciseCmd lockResult.lockCid ClawbackV2 with pointsCid = lockResult.pointsCid
+
+    --only after unlock, owner can access the points
+    unlockedPoints <- locker `submit` exerciseCmd lockResult.lockCid UnlockV2 with pointsCid = lockResult.pointsCid
+    propId <- owner `submit` exerciseCmd unlockedPoints Transfer with newOwner
+    newOwner `submit` exerciseCmd propId AcceptTransfer

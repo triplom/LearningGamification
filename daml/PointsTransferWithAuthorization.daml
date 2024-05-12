@@ -18,44 +18,36 @@ template Points
   where
     signatory bcPlatform, employee
 
-    ensure amount > 0.0
-
-    -- Choice to transfer points
-    choice Transfer : ContractId TransferRequest
-      with newEmployee: Party  -- Party representing the new employee
-           amount: Points
-      controller employee
-      do create TransferRequest with points; amount; newEmployee
-
-    -- Choice to check points balance
-    choice CheckPointsBalance : ContractId Points
-      controller employee
-      do return this 
+    ensure points.amount > 0.0
 
 -- TransferRequest contract
 template TransferRequest
   with
     points: Points          -- Points to be transferred
-    newEmployee: Party      -- Party representing the new employee
+    employee: Party      -- Party representing the new employee
   where
     signatory points.employee
     signatory points.bcPlatform
-    observer newEmployee
-
-    -- Choice to withdraw transfer
+    observer employee
+    
+     -- Choice to withdraw transfer
     choice WithdrawTransfer : ContractId Points
       controller points.employee
-      do create points
+      do 
+        let 
+          newPoints = points.amount
+          
+          create this with
+              points.amount = newPoints
 
     -- Choice to accept points transfer
     choice AcceptTransfer : ContractId Points
-      with token: ContractId CheckPointsBalance
-      controller newEmployee
+      controller points.employee
       do
-        t <- fetch token
+        t <- fetch newPoints
         assert (points.bcPlatform == t.bcPlatform)  -- Check if bcplatform matches
-        assert (newEmployee == t.employee)          -- Check if newEmployee is authorized
-        create Points with employee = newEmployee, employeeId = points.employeeId, bcPlatform = points.bcPlatform, amount = t.amount
+        assert (employee == t.employee)          -- Check if newEmployee is authorized
+        create Points with employee, bcPlatform = points.bcPlatform, amount = t.amount
 
 -- AuthorizationPoints contract
 template AuthorizationPoints
@@ -77,7 +69,7 @@ template RedeemPoints
   with
     employee: Party         -- Party representing the employee
     bcPlatform: Party     -- Party representing the blockchain platform
-    pointsToRedeem: Numeric 2   -- Amount of points to redeem
+    points.redeem: Numeric 2   -- Amount of points to redeem
   where
     signatory bcPlatform
     observer employee
@@ -85,9 +77,9 @@ template RedeemPoints
 -- Choice to redeem points
     choice Redeem: ContractId Points  -- Points to redeem from
       with
-        pointsToRedeem: ContractId Points
+        points.redeem: ContractId Points
       controller employee
       do
-        pointsContract <- fetch pointsToRedeem
-        assert (pointsContract.amount >= pointsToRedeem.amount)  -- Check if enough points available for redemption
-        create pointsContract with amount = pointsContract.amount - pointsToRedeem.amount
+        pointsContract <- fetch points.redeem
+        assert (points.amount >= points.redeem)  -- Check if enough points available for redemption
+        create pointsContract with amount = points.amount - points.redeem
