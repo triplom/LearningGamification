@@ -1,6 +1,6 @@
 # LearningGamification
 
-LearningGamification is a Daml project that gamifies the learning process by allowing users to earn points and badges as they complete courses and achieve learning milestones. The project consists of several contract templates, including Application, Account, CourseService, and PointsTransferWithAuthorization.
+LearningGamification is a Daml project that gamifies the learning process by allowing users to earn points and badges as they complete courses and achieve learning milestones. The project consists of several contract templates, including Application, Account, CourseService, PointsIssuance, PointsCommitment, PointsTransfer, Locking and LockingByChangingState .
 
 ## Contract Templates
 
@@ -20,19 +20,19 @@ The CourseService template defines the structure of a course service, including 
 
 This module defines the structure of a points transfer, including the sender, receiver, points, status, and authorization. The template includes several choices, including RequestPointsTransfer, AuthorizePointsTransfer, CompletePointsTransfer, and RejectPointsTransfer, which allow the sender and receiver to request, authorize, complete, and reject points transfers, respectively.
 
-### PointsIssuance: 
+### PointsIssuance
 
 This module contains templates for issuing points to users. It includes a PointsMaster template for initiating the points issuance process, a PointsIssueProposal template for accepting a points issuance proposal, a PointsIssueAgreement template for representing a points issuance agreement, and a Points template for representing issued points.
 
-### PointsTransfer: 
+### PointsTransfer
 
 This module contains templates for transferring points between users. It includes a TransferProposal template for representing a transfer proposal, and a PointsTransferWithAuthorization template for representing an authorized points transfer.
 
-### Locking: 
+### Locking
 
 This module contains templates for locking points. It includes a LockedPoints template for representing locked points, and a LockRequest template for representing a lock request.
 
-### LockingByChangingState: 
+### LockingByChangingState
 
 This module contains templates for locking points by changing their state. It includes a LockablePoints template for representing points that can be locked and unlocked, and a TransferProposal template for representing a transfer proposal.
 
