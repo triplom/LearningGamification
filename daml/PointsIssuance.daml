@@ -1,13 +1,8 @@
--- PointsIssuance.daml
-
 module PointsIssuance where
 
 import Daml.Script
 import DA.Time
-import Utility
 
-
--- PointsMaster template for initiating points issuance
 template PointsMaster
   with
     bcplatform: Party
@@ -17,9 +12,11 @@ template PointsMaster
     nonconsuming choice Invite : ContractId PointsIssueProposal
       with employee: Party
       controller bcplatform
-      do create PointsIssueProposal with pointsAgreement = PointsIssueAgreement with bcplatform; employee
+      do
+        proposal <- create PointsIssueProposal with pointsAgreement = PointsIssueAgreement 
+          with bcplatform; employee
+        pure proposal
 
--- PointsIssueProposal template for accepting points issuance proposal
 template PointsIssueProposal
   with
     pointsAgreement: PointsIssueAgreement
@@ -30,9 +27,9 @@ template PointsIssueProposal
     choice AcceptPointsProposal
       : ContractId PointsIssueAgreement
       controller pointsAgreement.employee
-      do create pointsAgreement
+      do
+        create pointsAgreement
 
--- PointsIssueAgreement template representing an agreement for points issuance
 template PointsIssueAgreement
   with
     bcplatform: Party
@@ -40,13 +37,14 @@ template PointsIssueAgreement
   where
     signatory bcplatform, employee
 
-    nonconsuming choice Issue : ContractId Points
+    nonconsuming choice Issue : ContractId PointsIssued
       with amount: Numeric 2
       controller bcplatform
-      do create Points with bcplatform; employee; amount; delegates = []
+      do
+        create PointsIssued 
+          with bcplatform; employee; amount; delegates = []
 
--- Points template representing issued points
-template Points
+template PointsIssued
   with
     employee: Party
     bcplatform: Party
@@ -59,102 +57,77 @@ template Points
     choice Transfer : ContractId TransferProposal
       with newEmployee: Party
       controller employee
-      do create TransferProposal with points=this; newEmployee
+      do
+        create TransferProposal 
+          with points = this; newEmployee
 
     choice Lock : ContractId LockedPoints
       with maturity: Time; locker: Party
       controller employee
-      do create LockedPoints with points=this; maturity; locker
+      do
+        create LockedPoints 
+          with points = this; maturity; locker
 
-    choice Disclose : ContractId Points
+    choice Disclose : ContractId PointsIssued
       with p : Party
       controller employee
-      do create this with delegates = p :: delegates
+      do
+        create this with delegates = p :: delegates
 
     choice Archives
       : ()
       controller bcplatform
-      do assert (bcplatform == employee)
+      do
+        assert (bcplatform == employee)
 
--- LockedPoints template representing points locked for a certain period
 template LockedPoints
   with
-    points: Points
+    points: Numeric 2
     maturity: Time
     locker: Party
   where
-    signatory points.bcplatform, points.employee
+    signatory bcplatform, employee
     observer locker
 
     choice Unlock
-      : ContractId Points
+      : ContractId PointsIssued
       controller locker
-      do create points
+      do
+        create PointsIssued 
+          with bcplatform; employee; amount = points; delegates = []
 
     choice Clawback
-      : ContractId Points
-      controller points.employee
+      : ContractId PointsIssued
+      controller employee
       do
-        currTime <- getTime
-        assert (currTime >= maturity)
-        create points
+        assert (now >= maturity)
+        create PointsIssued 
+          with bcplatform; employee; amount = points; delegates = []
 
--- TransferProposal template representing a proposal to transfer points
 template TransferProposal
   with
-    points: Points
+    points: Numeric 2
     newEmployee: Party
   where
-    signatory points.employee, points.bcplatform
+    signatory employee, bcplatform
     observer newEmployee
 
     choice WithdrawProposal
-      : ContractId Points
-      controller points.employee
-      do create points
+      : ContractId PointsIssued
+      controller employee
+      do
+        create this 
+          with bcplatform; employee; amount = points; delegates = []
 
     choice AcceptTransfer
-      : ContractId Points
+      : ContractId PointsIssued
       controller newEmployee
-      do create points with employee = newEmployee
+      do
+        create this
+          with bcplatform; employee = newEmployee; amount = points; delegates = []
 
     choice RejectTransfer
       : ()
       controller newEmployee
-      do return ()
-
-createPoints : Party -> Party -> Numeric 2 -> Script (ContractId Points)
-createPoints bcplatform employee amount =
-  do
-    masterId <- bcplatform `submit` createCmd PointsMaster with bcplatform
-    pointsAgmProp <- bcplatform `submit` exerciseCmd masterId Invite with employee
-    pointsAgmId <- employee `submit` exerciseCmd pointsAgmProp AcceptPointsProposal
-    bcplatform `submit` exerciseCmd pointsAgmId Issue with amount
-
-pointsIssuance : Script (ContractId TransferProposal)
-pointsIssuance =
-  script
-    do
-      [bcplatform, employee, newEmployee] <- makePartiesFrom ["Course", "Me", "You"]
-      
-      now <- getTime
-
-      -- Initiate points issuance
-      masterId <- bcplatform `submit` createCmd PointsMaster with bcplatform
-      pointsAgmProp <- bcplatform `submit` exerciseCmd masterId Invite with employee
-      pointsAgmId <- employee `submit` exerciseCmd pointsAgmProp AcceptPointsProposal
-      pointsId <- bcplatform `submit` exerciseCmd pointsAgmId Issue with amount = 100.0
-
-      -- Points transfer test
-      pointsTransferPropId <- employee `submit` exerciseCmd pointsId Transfer with newEmployee
-      pointsId <- newEmployee `submit` exerciseCmd pointsTransferPropId AcceptTransfer
-
-      -- Points lock test
-      lockedPointsId <- newEmployee `submit` exerciseCmd pointsId Lock with maturity= (addRelTime now (days 2)); locker=bcplatform
-
-      -- Attempt to clawback locked points before maturity
-      newEmployee `submitMustFail` do exerciseCmd lockedPointsId Clawback
-
-      -- Unlock locked points after maturity
-      unlockedPoints <- bcplatform `submit` exerciseCmd lockedPointsId Unlock
-      newEmployee `submit` exerciseCmd unlockedPoints Transfer with newEmployee=employee
+      do
+        pure ()

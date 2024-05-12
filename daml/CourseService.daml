@@ -3,9 +3,9 @@
 module CourseService where
 
 -- Import necessary modules
-import Application
 import DA.Time
-import PointsIssuance
+import Daml.Script
+import DA.Date (Month(Jan), date)
 
 -- Define type aliases for contract IDs
 type CourseProposalId = ContractId CourseProposal
@@ -20,7 +20,7 @@ data CourseInfo = CourseInfo with
     soloCourse: Bool       -- Indicates if it's a solo course
     account : Int          -- Account information for the course
     course_type: Text      -- Type of the course
-    status: Status         -- Status of the course
+    status: Text         -- Status of the course
     startDate: Date        -- Start date of the course
     endDate: Date          -- End date of the course
         deriving (Show, Eq)
@@ -150,7 +150,7 @@ template Course
                 todaysDate: Date            -- Current date
                 feedback: Optional(Text)   -- Optional feedback
                 readyToPublish: Bool       -- Indicates if course is ready to be published
-                points: Points             -- Points associated with the course
+                points: Numeric 2             -- Points associated with the course
             controller bcplatform
             do
                 -- If readyToPublish, create an accomplishment contract; otherwise, update evaluation date and note
@@ -176,7 +176,7 @@ template Accomplishment
     with
         course: Course              -- Course associated with the accomplishment
         bcplatform: Party         -- Party representing the blockchain platform
-        points: Points             -- Points associated with the accomplishment
+        points: Numeric 2             -- Points associated with the accomplishment
     where
         -- Ensure signatories of Accomplishment match those of Course
         signatory (signatory course)
@@ -184,3 +184,58 @@ template Accomplishment
         -- Define a key based on lead and courseInfo of Course
         key (course.courseInfo.lead, course.courseInfo) : (Party, CourseInfo)
         maintainer key._1
+
+-- Tests
+
+testCourseProposal: Script (ContractId CourseProposal)
+testCourseProposal = script do
+  -- Aloca as partes envolvidas
+  bcplatform <- allocateParty "BlockchainPlatform"
+  employee <- allocateParty "Employee"
+
+  -- Cria uma proposta de curso
+  courseProposalCid <- submit bcplatform do
+    createCmd CourseProposal with
+      employee = employee
+      bcplatform = bcplatform
+      courseInfo = CourseInfo with
+        lead = employee
+        courseId = 1
+        title = "Introduction to Blockchain"
+        details = "An introductory course on blockchain technology"
+        soloCourse = True
+        account = 123456
+        course_type = "Online"
+        status = "Active"
+        startDate = date 2024 Jan 02
+        endDate = date 2024 Jan 10
+      note = "Please review the proposal"
+      
+  -- Revisão da proposta de curso
+  revisedCourseProposalCid <- submit employee do
+    exerciseCmd courseProposalCid Revise with
+      newCourseInfo = CourseInfo with
+        lead = employee
+        courseId = 1
+        title = "Introduction to Blockchain (Revised)"
+        details = "An introductory course on blockchain technology (Revised)"
+        soloCourse = True
+        account = 123456
+        course_type = "Online"
+        status = "Active"
+        startDate = date 2024 Jan 03
+        endDate = date 2024 Jan 31
+      comment = "Updated course details"
+  
+  -- Rejeição da proposta de curso
+  rejectedCourseProposalCid <- submit bcplatform do
+    exerciseCmd courseProposalCid Reject with
+      feedback = "Course proposal rejected due to incomplete details"
+  
+  -- Cancelamento da proposta de curso
+  submit employee do
+    exerciseCmd revisedCourseProposalCid Cancel
+  
+  return courseProposalCid
+
+
