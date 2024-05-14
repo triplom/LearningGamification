@@ -1,0 +1,256 @@
+
+module TestApplication where 
+
+import Daml.Script
+import Application 
+import DA.Date (toDateUTC, date, Month(Jun), Month(May))
+import DA.Time (time)
+import DA.List (head)
+
+testSubmitAndAcceptCLPApplication: Script () 
+testSubmitAndAcceptCLPApplication = script do 
+    natacha <- allocateParty "Natacha"
+    educhain <- allocateParty "Educhain Incetive"
+    
+    setTime (time (date 2024 May 15) 10 30 0)
+    now <- getTime 
+
+    -- Natacha creates a blank CLPApplication
+    natachaCLPAppId <- submit natacha do         
+        createCmd CLPApplication with  
+            customer = natacha 
+            educhain = educhain 
+            id = ""
+            name = ""
+            address = ""
+            email = ""
+            phone = Some ""
+            timestamp = now 
+            dob = toDateUTC now
+
+    -- Natacha submits the application with details filled in
+    natachaCLPAppId <- submit natacha do 
+        exerciseCmd natachaCLPAppId SubmitApplication 
+            with
+                appCustomer = natacha 
+                appEduchain = educhain
+                customerId = "123"
+                customerName = "Natacha"
+                customerAddress = "123 Main St ABCD"
+                customerEmail = "natacha@educhain.io"
+                customerPhone = "+01-555-555-1234"
+                timestamp = now
+                customerDob = date 2000 Jan 05    
+
+    -- Educhain reviews application. This should result in a new CLPAccount for Natacha
+    natachaCLPAccount <- submit educhain do 
+        exerciseCmd natachaCLPAppId ReviewApplication 
+
+    -- Natacha creates another blank application
+    natachaCLPAppId <- submit natacha do         
+        createCmd CLPApplication with  
+            customer = natacha 
+            educhain = educhain 
+            id = ""
+            name = ""
+            address = ""
+            email = ""
+            phone = Some ""
+            timestamp = now 
+            dob = toDateUTC now
+
+   -- Natacha submits another application with details filled in
+    natachaCLPAppId <- submit natacha do 
+        exerciseCmd natachaCLPAppId SubmitApplication 
+            with
+                appCustomer = natacha 
+                appEduchain = educhain
+                customerId = "123"
+                customerName = "Natacha"
+                customerAddress = "123 Main St ABCD"
+                customerEmail = "natacha@educhain.io"
+                customerPhone = "+01-555-555-1234"
+                appTimeStamp = now
+                customerDob = date 2000 Jun 05    
+
+    -- Educhain reviews and should reject this application. No new account for Natacha should be created
+    natachaCLPAccount <- submit educhain do 
+        exerciseCmd natachaCLPAppId ReviewApplication 
+
+    return()
+
+
+testQueryAccounts: Script ()
+testQueryAccounts = script do 
+    natacha <- allocateParty "Natacha"
+    andre <- allocateParty "Andre"
+    educhain <- allocateParty "Educhain Incetives"
+    
+    setTime (time (date 2024 May 15) 10 30 0)
+    now <- getTime 
+
+    -- Natacha creates a blank CLPApplication
+    natachaCLPAppId <- submit natacha do         
+        createCmd CLPApplication with  
+            customer = natacha 
+            educhain = educhain 
+            id = ""
+            name = ""
+            address = ""
+            email = ""
+            phone = Some ""
+            timestamp = now 
+            dob = toDateUTC now
+
+    -- Natacha submits the application with details filled in
+    natachaCLPAppId <- submit natacha do 
+        exerciseCmd natachaCLPAppId SubmitApplication 
+            with
+                appCustomer = natacha 
+                appEduchain = educhain
+                customerId = "123"
+                customerName = "Natacha"
+                customerAddress = "123 Main St ABCD"
+                customerEmail = "natacha@educhain.io"
+                customerPhone = "+01-555-555-1234"
+                appTimeStamp = now
+                customerDob = date 2000 Jan 05    
+
+    -- Educhain reviews application. This should result in a new CLPAccount for Natacha
+    natachaCLPAccount <- submit educhain do 
+        exerciseCmd natachaCLPAppId ReviewApplication 
+
+    -- Andre creates a blank application
+    andreCLPAppId <- submit andre do         
+        createCmd CLPApplication with  
+            customer = andre 
+            educhain = educhain 
+            id = ""
+            name = ""
+            address = ""
+            email = ""
+            phone = Some ""
+            timestamp = now 
+            dob = toDateUTC now
+
+   -- Andre submits application with details filled in
+    andreCLPAppId <- submit andre do 
+        exerciseCmd andreCLPAppId SubmitApplication 
+            with
+                appCustomer = andre 
+                appEduchain = educhain
+                customerId = "234"
+                customerName = "Andre"
+                customerAddress = "123 Spring St EFGH"
+                customerEmail = "andre@educhain.io"
+                customerPhone = "+01-555-555-5678"
+                appTimeStamp = now
+                customerDob = date 2010 Jan 05    
+
+
+    -- Removing hardcoded id value by getting it from the contract payload.
+    andreApplication <- query @CLPApplication educhain
+    debug andreApplication
+    let id = (head andreApplication)._2.id 
+
+    andreCLPAccount <- submit educhain do 
+        exerciseCmd andreCLPAppId ReviewApplication
+
+    return ()
+
+
+testContractModification: Script () 
+testContractModification = script do 
+    natacha <- allocateParty "Natacha"
+    andre <- allocateParty "Andre"
+    educhain <- allocateParty "Epic Educhain"
+    
+    setTime (time (date 2024 May 15) 10 30 0)
+    now <- getTime 
+
+    -- Natacha creates a blank CLPApplication
+    natachaCLPAppId <- submit natacha do         
+        createCmd CLPApplication with  
+            customer = natacha 
+            educhain = educhain 
+            id = ""
+            name = ""
+            address = ""
+            email = ""
+            phone = Some ""
+            timestamp = now 
+            dob = toDateUTC now
+
+    -- Natacha submits the application with details filled in
+    natachaCLPAppId <- submit natacha do 
+        exerciseCmd natachaCLPAppId SubmitApplication 
+            with
+                appCustomer = natacha 
+                appEduchain = educhain
+                customerId = "123"
+                customerName = "Natacha"
+                customerAddress = "Rua da Blockchain 888"
+                customerEmail = "natacha@educhain.io"
+                customerPhone = "+351-999-123-1234"
+                appTimeStamp = now
+                customerDob = date 2000 Jun 05    
+
+
+    -- Andre creates a blank application
+    andreCLPAppId <- submit andre do         
+        createCmd CLPApplication with  
+            customer = andre 
+            educhain = educhain 
+            id = ""
+            name = ""
+            address = ""
+            email = ""
+            phone = Some ""
+            timestamp = now 
+            dob = toDateUTC now
+
+   -- Andre submits application with details filled in
+    andreCLPAppId <- submit andre do 
+        exerciseCmd andreCLPAppId SubmitApplication 
+            with
+                appCustomer = andre 
+                appEduchain = educhain
+                customerId = "234"
+                customerName = "Andre"
+                customerAddress = "Metaverse St"
+                customerEmail = "andre@educhain.io"
+                customerPhone = "+01-555-555-5678"
+                appTimeStamp = now
+                customerDob = date 2010 Jan 05    
+
+    
+    
+    
+    
+    --  Adding points after creating accounts
+
+    -- Get Natacha's id
+    natachaApplication <- query @CLPApplication natacha
+    let id = (head natachaApplication)._2.id 
+
+    -- Educhain reviews Natacha's application and creates her account
+    natachaCLPAccount <- submit educhain do 
+        exerciseCmd natachaCLPAppId ReviewApplication 
+
+    -- Get Andre's id
+    andreApplication <- query @CLPApplication andre
+    let id = (head andreApplication)._2.id 
+
+    -- Educhain reviews Andre's application and creates his account 
+    andreCLPAccount <- submit educhain do 
+        exerciseCmd andreCLPAppId ReviewApplication 
+
+    -- Educhain modifies Natacha's and Andre's accounts by adding 100 points
+
+    clpAccounts <- query @CLPAccount educhain
+
+    submit educhain do 
+        exerciseCmd (head clpAccounts)._1 AddPoints 
+            with newPoints = 100
+
+    return()
