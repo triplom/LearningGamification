@@ -4,9 +4,8 @@ module CourseService where
 
 -- Import necessary modules
 import DA.Time
-import Daml.Script
-import DA.Date (Month(Jun), date)
-import Application
+
+--import Application
 
 -- Define type aliases for contract IDs
 type CourseProposalId = ContractId CourseProposal
@@ -15,7 +14,7 @@ type CourseId = ContractId Course
 -- Define a record type to represent information about a course
 data CourseInfo = CourseInfo with
     customer: Party        -- Party enroll the course
-    courseId: Int          -- Id of the course
+    courseId: Text          -- Id of the course
     title: Text            -- Title of the course
     details: Text          -- Details/description of the course
     soloCourse: Bool       -- Indicates if it's a solo course

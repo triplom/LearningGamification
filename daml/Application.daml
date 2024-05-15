@@ -2,13 +2,9 @@ module Application where
 
 import DA.Optional
 import CourseService
-import DA.Time
-import Daml.Script
-import DA.Date (Month(Jun), date)
-
 
 -- Create customer application to enter in Educhain blockchain ledger
-template CLPApplication 
+template CustomerApplication 
     with 
         id: Text 
         customer: Party           -- Customer Party
@@ -24,7 +20,7 @@ template CLPApplication
         signatory customer
         observer educhain 
          
-        choice SubmitApplication: ContractId CLPApplication 
+        choice SubmitApplication: ContractId CustomerApplication 
             with 
                 appCustomer: Party 
                 appEduchain: Party
@@ -36,7 +32,7 @@ template CLPApplication
                 customerDob: Date 
             controller customer 
                 do 
-                    create CLPApplication  
+                    create CustomerApplication  
                         with 
                             id = customerId
                             customer = appCustomer
@@ -90,7 +86,7 @@ template CLPApplication
 template CLPAccount 
     with
         customer: Party 
-        educhain: Party 
+        educhain: Party
 
         id: Text 
         name: Text
@@ -123,20 +119,19 @@ template CLPAccount
                     phone
                     timestamp
                     dob
-        
-        choice AddCompletedPoints : Either (ContractId CLPAccount) Text
+        choice AddCompletedPoints : ContractId CLPAccount
             with
                 accomplishment: Bool
-                courseInfo.customer: Text 
-                courseInfo.id: Int
+                courseInfo: CourseInfo
+                id: Text
                 points: Int
                 newPoints: Int
-                todaysDate: Date           -- Current date
-                feedback: Optional(Text)   -- Optional feedback
-            controller educhain 
-            do 
+                todaysDate: Date
+                feedback: Optional Text
+            controller educhain
+            do
             if accomplishment then do
-                acc <- exerciseByKey @CLPAccount (educhain, id) AddCompletedPoints with newPoints
-                return (Left acc)
-              else do
-                return (Right "Course incomplete, finalize the it to get your points")
+                    let updatedPoints = points + newPoints
+                    create this with points = updatedPoints
+            else
+                fail "Course incomplete, finalize it to get your points"

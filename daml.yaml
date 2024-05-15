@@ -6,20 +6,20 @@ source: daml  # Specifies the source directory for DAML files.
 
 parties:  # List of parties involved in the project.
   - Marcel
-  - blockchain_coding
+  - educhain
   - Andre
   - Natacha
   - Yonara
-  - bc_platform
-  - employee
-  - parties
+  - course
+  - customer
+  
 
-version: 2.0.1  # Version number of the DAML project.
+version: 3.0.1  # Version number of the DAML project.
 
 init-scripts:  # Initialization scripts to be executed when the ledger starts.
   - TestApplication : Script  # Application script
-  - CourseService : Script  # Course script
-  - PointsTransferWithAuthorization: Script   # Points script
+  - TestCourseService : Script  # Course script
+
 
 dependencies:  # List of dependencies required by the project.
   - daml-prim  # DAML primitive library

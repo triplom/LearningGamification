@@ -1,13 +1,11 @@
 module TestCourseService where
 
 import Daml.Script
-import Application
 import CourseService
-import DA.Date (toDateUTC, date, Month(Jun), Month(May))
+import DA.Date (date, Month(Jun), Month(May))
 import DA.Time (time)
-import DA.List (head)
 
--- Tests
+-- Tests CourseService
 
 testCourseProposal: Script (ContractId CourseProposal)
 testCourseProposal = script do
@@ -25,7 +23,7 @@ testCourseProposal = script do
       educhain = educhain
       courseInfo = CourseInfo with
         customer = customer
-        courseId = 1
+        courseId = "1"
         title = "Introduction to Blockchain"
         details = "An introductory course on blockchain technology"
         soloCourse = True
@@ -41,7 +39,7 @@ testCourseProposal = script do
     exerciseCmd courseProposalCid Revise with
       newCourseInfo = CourseInfo with
         customer = customer
-        courseId = 1
+        courseId = "1"
         title = "Introduction to Blockchain (Revised)"
         details = "An introductory course on blockchain technology (Revised)"
         soloCourse = True
