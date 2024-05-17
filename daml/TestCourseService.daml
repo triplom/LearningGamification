@@ -1,16 +1,19 @@
+
 module TestCourseService where
 
 import Daml.Script
+import Application
 import CourseService
 import DA.Date (date, Month(Jun), Month(May))
 import DA.Time (time)
+import DA.Optional (isSome, fromSome)
 
 -- Tests CourseService
 
-testCourseProposal: Script (ContractId CourseProposal)
+testCourseProposal: Script ()
 testCourseProposal = script do
   -- Aloca as partes envolvidas
-  educhain <- allocateParty "Educhain Incetive"
+  educhain <- allocateParty "Educhain Incentives"
   customer <- allocateParty "Natacha"
 
   setTime (time (date 2024 May 15) 10 30 0)
@@ -27,13 +30,13 @@ testCourseProposal = script do
         title = "Introduction to Blockchain"
         details = "An introductory course on blockchain technology"
         soloCourse = True
-        account = 123456
+        account = 1234
         course_type = "Online"
         status = "Active"
         startDate = date 2024 Jun 02
         endDate = date 2024 Jun 10
       note = "Please review the proposal"
-      
+  
   -- Revisão da proposta de curso
   revisedCourseProposalCid <- submit customer do
     exerciseCmd courseProposalCid Revise with
@@ -47,11 +50,11 @@ testCourseProposal = script do
         course_type = "Online"
         status = "Active"
         startDate = date 2024 Jun 03
-        endDate = date 2024 Jun 31
+        endDate = date 2024 Jun 30
       comment = "Updated course details"
   
   -- Rejeição da proposta de curso
-  rejectedCourseProposalCid <- submit educhain do
+  submit educhain do
     exerciseCmd courseProposalCid Reject with
       feedback = "Course proposal rejected due to incomplete details"
   
@@ -59,4 +62,4 @@ testCourseProposal = script do
   submit customer do
     exerciseCmd revisedCourseProposalCid Cancel
   
-  return courseProposalCid
+  return ()

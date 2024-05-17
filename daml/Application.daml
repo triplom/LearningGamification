@@ -29,6 +29,7 @@ template CustomerApplication
                 customerAddress: Text
                 customerEmail: Text
                 customerPhone: Optional Text
+                appTimeStamp: Time
                 customerDob: Date 
             controller customer 
                 do 
@@ -41,30 +42,30 @@ template CustomerApplication
                             address = customerAddress
                             email = customerEmail
                             phone = customerPhone
-                            timestamp = timestamp
+                            timestamp = appTimeStamp
                             dob = customerDob
         
-        choice ReviewApplication: Optional (ContractId CLPAccount)
+        choice ReviewApplication: Optional (ContractId CAccount)
             controller educhain 
                 do 
-                    account <- lookupByKey @CLPAccount (educhain, id)
+                    account <- lookupByKey @CAccount (educhain, id)
                     now <- getTime
                     if (isSome account) then 
                         return None
                     else do
-                        account <- create CLPAccount with                                
+                        account <- create CAccount with                                
                                 timestamp = now                                 
                                 points = 0   
                                 ..
                         return (Some account)
 
                         
-        choice AcceptApplication: ContractId CLPAccount 
+        choice AcceptApplication: ContractId CAccount 
             with 
                 points: Int
             controller educhain 
                 do 
-                    create CLPAccount 
+                    create CAccount 
                         with 
                             customer = customer
                             educhain = educhain
@@ -83,7 +84,7 @@ template CustomerApplication
                     return ("Application rejected")
 
 -- Customer account
-template CLPAccount 
+template CAccount 
     with
         customer: Party 
         educhain: Party
@@ -103,12 +104,12 @@ template CLPAccount
         key (educhain, id): (Party, Text)
         maintainer key._1
     
-        choice AddPoints : ContractId CLPAccount 
+        choice AddPoints : ContractId CAccount 
             with 
                 newPoints: Int 
             controller educhain 
             do 
-                create CLPAccount with 
+                create CAccount with 
                     points = points + newPoints
                     customer
                     educhain
@@ -119,7 +120,7 @@ template CLPAccount
                     phone
                     timestamp
                     dob
-        choice AddCompletedPoints : ContractId CLPAccount
+        choice AddCompletedPoints : ContractId CAccount
             with
                 accomplishment: Bool
                 courseInfo: CourseInfo
@@ -134,4 +135,4 @@ template CLPAccount
                     let updatedPoints = points + newPoints
                     create this with points = updatedPoints
             else
-                fail "Course incomplete, finalize it to get your points"
+                fail "Course incomplete, finalize it to receive your points"
