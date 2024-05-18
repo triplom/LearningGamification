@@ -1,65 +1,70 @@
+-- TestCourseService.daml
 
 module TestCourseService where
 
 import Daml.Script
-import Application
 import CourseService
-import DA.Date (date, Month(Jun), Month(May))
+import DA.Date (date, Month(May), Month(Jun))
 import DA.Time (time)
-import DA.Optional (isSome, fromSome)
 
--- Tests CourseService
-
+-- Testa a proposta de curso
 testCourseProposal: Script ()
 testCourseProposal = script do
-  -- Aloca as partes envolvidas
-  educhain <- allocateParty "Educhain Incentives"
-  customer <- allocateParty "Natacha"
+    natacha <- allocateParty "Natacha"
+    andre <- allocateParty "Andre"
+    educhain <- allocateParty "Educhain Incentives"
+    
+    setTime (time (date 2024 May 17) 10 33 0)
+    now <- getTime 
+   
+    -- Cria uma proposta de curso
+    courseProposalCid <- submitMulti [natacha, educhain] [] do
+        createCmd CourseProposal with
+          customer = natacha
+          educhain = educhain
+          courseInfo = CourseInfo
+            with 
+              customer = natacha
+              courseId = "1"
+              title = "Introduction to Blockchain"
+              details = "An introductory course on blockchain technology"
+              soloCourse = True
+              account = 1234
+              course_type = "Online"
+              status = "Active"
+              startDate = date 2024 Jun 02
+              endDate = date 2024 Jun 10
+          note = "Please review the proposal"
+  
+    -- Revisão da proposta de curso
+    revisedCourseProposalCid <- submit natacha do
+        exerciseCmd courseProposalCid Revise with
+          newCourseInfo = CourseInfo with
+            customer = natacha
+            courseId = "1"
+            title = "Introduction to Blockchain (Revised)"
+            details = "An introductory course on blockchain technology (Revised)"
+            soloCourse = True
+            account = 1234
+            course_type = "Online"
+            status = "Active (Revised)"
+            startDate = date 2024 Jun 03
+            endDate = date 2024 Jun 30 
+          comment = "Updated course details"
+  
+    -- -- Aprovação da proposta de curso
+    -- approvedCourseCid <-submit educhain do 
+    --   exerciseCmd courseCid Approve with
+    --      comment = "Course proposal Approved! You may start your classes!"
 
-  setTime (time (date 2024 May 15) 10 30 0)
-  now <- getTime 
+    -- -- Rejeição da proposta de curso
+    -- submit educhain do 
+    --   exerciseCmd revisedCourseProposalCid Reject with
+    --     feedback = "Course proposal rejected due to incomplete details"
+    
+    -- -- Cancelamento da proposta de curso
+    -- submit natacha do 
+    --   exerciseCmd revisedCourseProposalCid Cancel
 
-  -- Cria uma proposta de curso
-  courseProposalCid <- submit educhain do
-    createCmd CourseProposal with
-      customer = customer
-      educhain = educhain
-      courseInfo = CourseInfo with
-        customer = customer
-        courseId = "1"
-        title = "Introduction to Blockchain"
-        details = "An introductory course on blockchain technology"
-        soloCourse = True
-        account = 1234
-        course_type = "Online"
-        status = "Active"
-        startDate = date 2024 Jun 02
-        endDate = date 2024 Jun 10
-      note = "Please review the proposal"
-  
-  -- Revisão da proposta de curso
-  revisedCourseProposalCid <- submit customer do
-    exerciseCmd courseProposalCid Revise with
-      newCourseInfo = CourseInfo with
-        customer = customer
-        courseId = "1"
-        title = "Introduction to Blockchain (Revised)"
-        details = "An introductory course on blockchain technology (Revised)"
-        soloCourse = True
-        account = 123456
-        course_type = "Online"
-        status = "Active"
-        startDate = date 2024 Jun 03
-        endDate = date 2024 Jun 30
-      comment = "Updated course details"
-  
-  -- Rejeição da proposta de curso
-  submit educhain do
-    exerciseCmd courseProposalCid Reject with
-      feedback = "Course proposal rejected due to incomplete details"
-  
-  -- Cancelamento da proposta de curso
-  submit customer do
-    exerciseCmd revisedCourseProposalCid Cancel
-  
-  return ()
+
+    return ()

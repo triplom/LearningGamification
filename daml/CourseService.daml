@@ -5,8 +5,6 @@ module CourseService where
 -- Import necessary modules
 import DA.Time
 
---import Application
-
 -- Define type aliases for contract IDs
 type CourseProposalId = ContractId CourseProposal
 type CourseId = ContractId Course
@@ -45,7 +43,7 @@ instance Duration CourseInfo Int where
             diffInDays: Int
             diffInDays = wholeDays diffInRelTime
 
-            diffInWeekDays = diffInDays - (diffInDays/7 * 2) + 1  -- Account for weekdays
+            diffInWeekDays = diffInDays - (diffInDays / 7 * 2) + 1  -- Account for weekdays
         in 
             diffInWeekDays
 
@@ -53,27 +51,27 @@ instance Duration CourseInfo Int where
 template CourseProposal
   with
     customer : Party            -- Customer proposing the course
-    educhain : Party         -- Party representing the blockchain platform
+    educhain : Party            -- Party representing the blockchain platform
     courseInfo: CourseInfo      -- Information about the course
     note: Text                  -- Additional notes/comments
   where
     signatory educhain, customer  -- Parties who can sign the contract
 
-    -- Define a key based on educhain and courseInfo
-    key (educhain, courseInfo) : (Party, CourseInfo)
-    maintainer key._1
+    -- -- Define a key based on educhain and courseInfo
+    -- key (educhain, customer, courseInfo) : (Party, Party, CourseInfo)
+    -- maintainer key._1
 
     -- Ensure that the end date is later than the start date
     ensure (courseInfo.startDate < courseInfo.endDate)
 
     -- Non-consuming choice to propose a course
     nonconsuming choice Propose: CourseProposalId
-        controller customer
+        controller customer, educhain
         do
           return self
 
     -- Non-consuming choice for educhain to check customer accomplishments
-    nonconsuming choice CustomerAccomplishments: ([Text])
+    nonconsuming choice CustomerAccomplishments: [Text]
         with
             accomplishments: [(ContractId AccomplishmentCourse, AccomplishmentCourse)]
         controller educhain
@@ -84,13 +82,12 @@ template CourseProposal
             return $ map (\acc -> acc._2.course.courseInfo.title <> " : " <> acc._2.course.courseInfo.details) accomplishments
 
     -- Choice for educhain to reject a course proposal
-    choice Reject: CourseProposalId
+    choice Reject: ()
       with
           feedback: Text
       controller educhain
       do
-         create this with
-            note = feedback
+         archive self
 
     -- Non-consuming choice for customer to revise a course proposal
     nonconsuming choice Revise: CourseProposalId
@@ -99,17 +96,16 @@ template CourseProposal
           comment: Text
       controller customer
       do
-          assertMsg ("Course info needs to be revised")(this.courseInfo /= newCourseInfo)
-          archive self
+          assertMsg ("Course info needs to be revised") (this.courseInfo /= newCourseInfo)
           create this with
               courseInfo = newCourseInfo
               note = comment
-     
+
     -- Choice for customer to cancel the proposal
     choice Cancel: ()
       controller customer
       do
-        return ()
+        archive self
 
     -- Choice for educhain to approve the course proposal and create a course contract
     choice Approve: CourseId
@@ -119,6 +115,7 @@ template CourseProposal
       controller educhain
       do
          assertMsg "Course should be finished before the deadline." (evaluationDate > courseInfo.endDate)
+         archive self
          create Course with
              courseInfo
              duration = getDuration courseInfo
@@ -131,15 +128,15 @@ template Course
     with
         courseInfo: CourseInfo      -- Information about the course
         duration: Int               -- Duration of the course
-        educhain: Party          -- Party representing the blockchain platform
-        evaluationDate: Date       -- Date of course evaluation
+        educhain: Party             -- Party representing the blockchain platform
+        evaluationDate: Date        -- Date of course evaluation
         educhainNote: Optional(Text)  -- Optional note from educhain
     where
         signatory educhain, courseInfo.customer  -- Parties who can sign the contract
 
-        -- Define a key based on customer and courseInfo
-        key (courseInfo.customer, courseInfo):(Party, CourseInfo)
-        maintainer key._1
+        -- -- Define a key based on customer and courseInfo
+        -- key (courseInfo.customer, courseInfo):(Party, CourseInfo)
+        -- maintainer key._1
 
         -- Ensure evaluationDate is after endDate
         ensure evaluationDate > courseInfo.endDate
@@ -157,7 +154,8 @@ template Course
                 if readyToPublish then do
                     newAcc <- create AccomplishmentCourse with
                         course = this
-                        educhain, points
+                        educhain
+                        points
                     return (Right newAcc)
                 else do
                     currCourse <- create this with 
@@ -169,7 +167,7 @@ template Course
         choice CancelCourse: ()
             controller educhain, courseInfo.customer
             do
-                return ()
+                archive self
 
 -- Define a template for an accomplishment
 template AccomplishmentCourse
@@ -181,6 +179,6 @@ template AccomplishmentCourse
         -- Ensure signatories of Accomplishment match those of Course
         signatory (signatory course)
 
-        -- Define a key based on customer and courseInfo of Course
-        key (course.courseInfo.customer, course.courseInfo) : (Party, CourseInfo)
-        maintainer key._1
+        -- -- Define a key based on customer and courseInfo of Course
+        -- key (course.courseInfo.customer, course.courseInfo) : (Party, CourseInfo)
+        -- maintainer key._1

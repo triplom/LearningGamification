@@ -16,9 +16,8 @@ parties:  # List of parties involved in the project.
 
 version: 3.0.1  # Version number of the DAML project.
 
-init-scripts:  # Initialization scripts to be executed when the ledger starts.
-  - TestApplication : Script  # Application script
-  - TestCourseService : Script  # Course script
+#init-script: TestApplication:Script  # Application script
+#  - TestCourseService:Script  # Course script
 
 
 dependencies:  # List of dependencies required by the project.

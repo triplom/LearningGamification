@@ -1,22 +1,24 @@
+-- TestApplication.daml
+
 module TestApplication where 
 
 import Daml.Script
 import Application 
 import DA.Date (toDateUTC, date, Month(Jun), Month(May))
 import DA.Time (time)
-import DA.List (head)
-import DA.Optional(isSome, fromSome)
-import DA.Foldable (forA_)
+--import DA.List (head)
+import DA.Optional(fromSome)
+--import DA.Foldable (forA_)
 
 -- 1. Tests Submit and Accept Application
 testSubmitAndAcceptCustomerApplication: Script ()
 testSubmitAndAcceptCustomerApplication = script do 
-    --natacha <- allocateParty "Natacha"
+    natacha <- allocateParty "Natacha"
     andre <- allocateParty "Andre"
     educhain <- allocateParty "Educhain Incentives"
     
     setTime (time (date 2024 May 17) 10 33 0)
-    --now <- getTime 
+    now <- getTime 
 
     {-- Natacha cria uma aplicação
     natachaCAppId <- submit natacha do         
@@ -51,8 +53,8 @@ testSubmitAndAcceptCustomerApplication = script do
 
     -- Testando se a conta foi criada corretamente
     assertMsg "Natacha's account not created" (isSome natachaCustomerApplication)
--}
-    {-- Andre cria uma aplicação
+--}
+    -- Andre cria uma aplicação
     andreCAppId <- submit andre do         
         createCmd CustomerApplication with  
             customer = andre 
@@ -174,7 +176,7 @@ testQueryAccounts = script do
 
 --}
 
-{-- 3. Teste: testContractModification
+-- 3. Teste: testContractModification
 
 testContractModification: Script () 
 testContractModification = script do 
@@ -184,7 +186,7 @@ testContractModification = script do
     
     setTime (time (date 2024 May 17) 15 30 0)
     now <- getTime 
--}
+--
     {-- Natacha cria uma aplicação
     natachaCAppId <- submit natacha do         
         createCmd CustomerApplication with  
@@ -216,7 +218,7 @@ testContractModification = script do
     natachaAccountCid <- submit educhain do 
         exerciseCmd natachaCAppId ReviewApplication 
 -}
-    {-- Andre cria uma aplicação
+    -- Andre cria uma aplicação
     andreCAppId <- submit andre do         
         createCmd CustomerApplication with  
             customer = andre 
