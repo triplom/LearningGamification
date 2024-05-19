@@ -122,44 +122,23 @@ template CAccount
             controller educhain         -- Educhain controla esta escolha
             do 
                 -- Cria uma nova conta com os pontos atualizados
-                create CAccount with 
+                create this with 
                     points = points + newPoints
-                    customer
-                    educhain
-                    id
-                    name
-                    address
-                    email
-                    phone
-                    timestamp
-                    dob
                     
         -- Choice para adicionar pontos após completar um curso
         choice AddCompletedPoints : ContractId CAccount
             with
                 accomplishment: Bool    -- Indicador se o curso foi completado
                 courseInfo: CourseInfo  -- Informações do curso
-                id: Text                -- ID da conta
-                points: Int             -- Pontos atuais
                 newPoints: Int          -- Novos pontos a serem adicionados
-                todaysDate: Date        -- Data de hoje
-                feedback: Optional Text -- Feedback opcional
             controller educhain         -- Educhain controla esta escolha
             do
                 if accomplishment then do
+                    -- Verifica se o curso foi completado
+                    --ensure courseInfo.status == "Completed"
                     let updatedPoints = points + newPoints
                     -- Cria uma nova conta com os pontos atualizados
-                    create CAccount with 
-                        points = updatedPoints
-                        customer
-                        educhain
-                        id
-                        name
-                        address
-                        email
-                        phone
-                        timestamp
-                        dob
+                    create this with points = updatedPoints + 100
                 else
-                    fail "Course incomplete, finalize it to receive your points"  -- Falha se o curso não foi completado
-
+                    -- Falha se o curso não foi completado
+                    fail "Course incomplete, finalize it to receive your points"

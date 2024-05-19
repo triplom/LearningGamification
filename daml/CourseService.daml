@@ -65,13 +65,13 @@ template CourseProposal
     ensure (courseInfo.startDate < courseInfo.endDate)
 
     -- Non-consuming choice to propose a course
-    nonconsuming choice Propose: CourseProposalId
+    choice Propose: CourseProposalId 
         controller customer, educhain
         do
           return self
 
     -- Non-consuming choice for educhain to check customer accomplishments
-    nonconsuming choice CustomerAccomplishments: [Text]
+    choice CustomerAccomplishments: [Text]
         with
             accomplishments: [(ContractId AccomplishmentCourse, AccomplishmentCourse)]
         controller educhain
@@ -90,7 +90,7 @@ template CourseProposal
          archive self
 
     -- Non-consuming choice for customer to revise a course proposal
-    nonconsuming choice Revise: CourseProposalId
+    choice Revise: CourseProposalId
       with
           newCourseInfo: CourseInfo
           comment: Text
@@ -98,8 +98,8 @@ template CourseProposal
       do
           assertMsg ("Course info needs to be revised") (this.courseInfo /= newCourseInfo)
           create this with
-              courseInfo = newCourseInfo
-              note = comment
+            courseInfo = newCourseInfo
+            note = comment
 
     -- Choice for customer to cancel the proposal
     choice Cancel: ()
@@ -108,8 +108,9 @@ template CourseProposal
         archive self
 
     -- Choice for educhain to approve the course proposal and create a course contract
-    choice Approve: CourseId
+    choice Approve: CourseId 
       with
+          --customer: Party
           evaluationDate: Date        -- Date when the course evaluation will be completed
           educhainNote: Optional(Text)  -- Optional note from educhain
       controller educhain
@@ -120,6 +121,7 @@ template CourseProposal
              courseInfo
              duration = getDuration courseInfo
              educhain
+             customer
              evaluationDate
              educhainNote
 
@@ -129,6 +131,7 @@ template Course
         courseInfo: CourseInfo      -- Information about the course
         duration: Int               -- Duration of the course
         educhain: Party             -- Party representing the blockchain platform
+        customer: Party
         evaluationDate: Date        -- Date of course evaluation
         educhainNote: Optional(Text)  -- Optional note from educhain
     where
@@ -155,6 +158,7 @@ template Course
                     newAcc <- create AccomplishmentCourse with
                         course = this
                         educhain
+                        customer
                         points
                     return (Right newAcc)
                 else do
@@ -174,6 +178,7 @@ template AccomplishmentCourse
     with
         course: Course         -- Course associated with the accomplishment
         educhain: Party        -- Party representing the blockchain platform
+        customer: Party
         points: Int            -- Points associated with the accomplishment
     where
         -- Ensure signatories of Accomplishment match those of Course

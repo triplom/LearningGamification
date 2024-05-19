@@ -8,265 +8,267 @@ import DA.Date (toDateUTC, date, Month(Jun), Month(May))
 import DA.Time (time)
 --import DA.List (head)
 import DA.Optional(fromSome)
---import DA.Foldable (forA_)
 
--- 1. Tests Submit and Accept Application
-testSubmitAndAcceptCustomerApplication: Script ()
-testSubmitAndAcceptCustomerApplication = script do 
-    natacha <- allocateParty "Natacha"
-    andre <- allocateParty "Andre"
-    educhain <- allocateParty "Educhain Incentives"
+import DA.Optional
+import DA.Foldable (forA_)
+
+-- -- 1. Tests Submit and Accept Application
+-- testSubmitAndAcceptCustomerApplication: Script ()
+-- testSubmitAndAcceptCustomerApplication = script do 
+--     natacha <- allocateParty "Natacha"
+--     andre <- allocateParty "Andre"
+--     educhain <- allocateParty "Educhain Incentives"
     
-    setTime (time (date 2024 May 17) 10 33 0)
-    now <- getTime 
+--     setTime (time (date 2024 May 19) 10 34 0)
+--     now <- getTime 
 
-    {-- Natacha cria uma aplicação
-    natachaCAppId <- submit natacha do         
-        createCmd CustomerApplication with  
-            customer = natacha 
-            educhain = educhain 
-            id = ""
-            name = ""
-            address = ""
-            email = ""
-            phone = Some ""
-            timestamp = now 
-            dob = toDateUTC now
+    -- -- Natacha cria uma aplicação
+    -- natachaCAppId <- submit natacha do         
+    --     createCmd CustomerApplication with  
+    --         customer = natacha 
+    --         educhain = educhain 
+    --         id = ""
+    --         name = ""
+    --         address = ""
+    --         email = ""
+    --         phone = Some ""
+    --         timestamp = now 
+    --         dob = toDateUTC now
 
-    -- Natacha preenche os detalhes da aplicação e submete
-    submit natacha do 
-        exerciseCmd natachaCAppId SubmitApplication 
-            with
-                appCustomer = natacha 
-                appEduchain = educhain
-                customerId = "1234"
-                customerName = "Natacha"
-                customerAddress = "Rua do Blockchain 888"
-                customerEmail = "natacha@educhain.io"
-                customerPhone = Some "+351-999-123-1234"
-                appTimeStamp = now
-                customerDob = date 2000 Jun 05    
+    -- -- Natacha preenche os detalhes da aplicação e submete
+    -- submit natacha do 
+    --     exerciseCmd natachaCAppId SubmitApplication 
+    --         with
+    --             appCustomer = natacha 
+    --             appEduchain = educhain
+    --             customerId = "1234"
+    --             customerName = "Natacha"
+    --             customerAddress = "Rua do Blockchain 888"
+    --             customerEmail = "natacha@educhain.io"
+    --             customerPhone = Some "+351-999-123-1234"
+    --             appTimeStamp = now
+    --             customerDob = date 2000 Jun 05    
 
-    -- Educhain revisa a aplicação, criando uma conta para Natacha
-    natachaCustomerApplication <- submit educhain do 
-        exerciseCmd natachaCAppId ReviewApplication 
+    -- -- Educhain revisa a aplicação, criando uma conta para Natacha
+    -- natachaCustomerApplication <- submit educhain do 
+    --     exerciseCmd natachaCAppId ReviewApplication 
 
-    -- Testando se a conta foi criada corretamente
-    assertMsg "Natacha's account not created" (isSome natachaCustomerApplication)
---}
-    -- Andre cria uma aplicação
-    andreCAppId <- submit andre do         
-        createCmd CustomerApplication with  
-            customer = andre 
-            educhain = educhain 
-            id = ""
-            name = ""
-            address = ""
-            email = ""
-            phone = Some ""
-            timestamp = now 
-            dob = toDateUTC now
+    -- -- Testando se a conta foi criada corretamente
+    -- assertMsg "Natacha's account not created" (isSome natachaCustomerApplication)
 
-    -- Andre submete a aplicação com detalhes preenchidos
-    submit andre do 
-        exerciseCmd andreCAppId SubmitApplication 
-            with
-                appCustomer = andre 
-                appEduchain = educhain
-                customerId = "234"
-                customerName = "Andre"
-                customerAddress = "Rua Legder 456"
-                customerEmail = "andre@educhain.io"
-                customerPhone = Some "+351-999-555-5678"
-                appTimeStamp = now
-                customerDob = date 2010 Jun 06    
+    -- -- Andre cria uma aplicação
+    -- andreCAppId <- submit andre do         
+    --     createCmd CustomerApplication with  
+    --         customer = andre 
+    --         educhain = educhain 
+    --         id = ""
+    --         name = ""
+    --         address = ""
+    --         email = ""
+    --         phone = Some ""
+    --         timestamp = now 
+    --         dob = toDateUTC now
 
-    -- Verifica todas as aplicações
-    allApplications <- query @CustomerApplication educhain 
-    -- Obtém todos os CIDs das aplicações
-    let allApplicationCids = map fst allApplications
-    -- Obtém todos os IDs dos clientes
-    let allCustomerIds = map (\(_, app) -> customerId) allApplications
-    -- Cria uma lista de tuplas com CIDs e IDs
-    let allCidsAndIds = zip allApplicationCids allCustomerIds 
+    -- -- Andre submete a aplicação com detalhes preenchidos
+    -- submit andre do 
+    --     exerciseCmd andreCAppId SubmitApplication 
+    --         with
+    --             appCustomer = andre 
+    --             appEduchain = educhain
+    --             customerId = "234"
+    --             customerName = "Andre"
+    --             customerAddress = "Rua Legder 456"
+    --             customerEmail = "andre@educhain.io"
+    --             customerPhone = Some "+351-999-555-5678"
+    --             appTimeStamp = now
+    --             customerDob = date 2010 Jun 06    
 
-    return ()
+    -- -- Verifica todas as aplicações
+    -- allApplications <- query @CustomerApplication educhain 
+    -- -- Obtém todos os CIDs das aplicações
+    -- let allApplicationCids = map fst allApplications
+    -- -- Obtém todos os IDs dos clientes
+    -- let allCustomerIds = map (\(_, app) -> customerId) allApplications
+    -- -- Cria uma lista de tuplas com CIDs e IDs
+    -- let allCidsAndIds = zip allApplicationCids allCustomerIds 
 
---}
+    -- return ()
 
-{-- 2. Teste: testQueryAccounts
 
-testQueryAccounts: Script ()
-testQueryAccounts = script do 
-    natacha <- allocateParty "Natacha"
-    andre <- allocateParty "Andre"
-    educhain <- allocateParty "Educhain Incentives"
+
+-- -- 2. Teste: testQueryAccounts
+
+-- testQueryAccounts: Script ()
+-- testQueryAccounts = script do 
+--     natacha <- allocateParty "Natacha"
+--     andre <- allocateParty "Andre"
+--     educhain <- allocateParty "Educhain Incentives"
     
-    setTime (time (date 2024 May 17) 10 30 0)
-    now <- getTime 
--}
-    {-- Natacha cria uma aplicação
-    natachaCAppId <- submit natacha do         
-        createCmd CustomerApplication with  
-            customer = natacha 
-            educhain = educhain 
-            id = ""
-            name = ""
-            address = ""
-            email = ""
-            phone =  Some ""
-            timestamp = now 
-            dob = toDateUTC now
+--     setTime (time (date 2024 May 18) 10 30 0)
+--     now <- getTime 
 
-    -- Natacha preenche os detalhes da aplicação e submete
-    submit natacha do 
-        exerciseCmd natachaCAppId SubmitApplication 
-            with
-                appCustomer = natacha 
-                appEduchain = educhain
-                customerId = "123"
-                customerName = "Natacha"
-                customerAddress = "Rua do Blockchain 888"
-                customerEmail = "natacha@educhain.io"
-                customerPhone = Some "+351-999-123-1234"
-                appTimeStamp = now
-                customerDob = date 2000 Jun 06    
+    -- -- Natacha cria uma aplicação
+    -- natachaCAppId <- submit natacha do         
+    --     createCmd CustomerApplication with  
+    --         customer = natacha 
+    --         educhain = educhain 
+    --         id = ""
+    --         name = ""
+    --         address = ""
+    --         email = ""
+    --         phone =  Some ""
+    --         timestamp = now 
+    --         dob = toDateUTC now
 
-    -- Educhain revisa a aplicação, criando uma conta para Natacha
-    submit educhain do 
-        exerciseCmd natachaCAppId ReviewApplication 
--}
-    {-- Andre cria uma aplicação
-    andreCAppId <- submit andre do         
-        createCmd CustomerApplication with  
-            customer = andre 
-            educhain = educhain 
-            id = ""
-            name = ""
-            address = ""
-            email = ""
-            phone = Some ""
-            timestamp = now 
-            dob = toDateUTC now
+    -- -- Natacha preenche os detalhes da aplicação e submete
+    -- submit natacha do 
+    --     exerciseCmd natachaCAppId SubmitApplication 
+    --         with
+    --             appCustomer = natacha 
+    --             appEduchain = educhain
+    --             customerId = "123"
+    --             customerName = "Natacha"
+    --             customerAddress = "Rua do Blockchain 888"
+    --             customerEmail = "natacha@educhain.io"
+    --             customerPhone = Some "+351-999-123-1234"
+    --             appTimeStamp = now
+    --             customerDob = date 2000 Jun 06    
 
-    -- Andre preenche os detalhes da aplicação e submete
-    submit andre do 
-        exerciseCmd andreCAppId SubmitApplication 
-            with
-                appCustomer = andre 
-                appEduchain = educhain
-                customerId = "234"
-                customerName = "Andre"
-                customerAddress = "Rua Legder 456"
-                customerEmail = "andre@educhain.io"
-                customerPhone = Some "+351-999-555-5678"
-                appTimeStamp = now
-                customerDob = date 2010 Jun 05    
+    -- -- Educhain revisa a aplicação, criando uma conta para Natacha
+    -- submit educhain do 
+    --     exerciseCmd natachaCAppId ReviewApplication 
 
-    -- Verificando se as contas foram criadas corretamente
-    customerApplications <- query @CustomerApplication educhain
-    assertMsg "Natacha's account not created" (any (\(_, acc) -> acc.customer == natacha) customerApplications)
-    assertMsg "Andre's account not created" (any (\(_, acc) -> acc.customer == andre) customerApplications)
+    -- -- Andre cria uma aplicação
+    -- andreCAppId <- submit andre do         
+    --     createCmd CustomerApplication with  
+    --         customer = andre 
+    --         educhain = educhain 
+    --         id = ""
+    --         name = ""
+    --         address = ""
+    --         email = ""
+    --         phone = Some ""
+    --         timestamp = now 
+    --         dob = toDateUTC now
 
-    -- Educhain revisa a aplicação do Andre, criando sua conta
-    submit educhain do 
-        exerciseCmd andreCAppId ReviewApplication
+    -- -- Andre preenche os detalhes da aplicação e submete
+    -- submit andre do 
+    --     exerciseCmd andreCAppId SubmitApplication 
+    --         with
+    --             appCustomer = andre 
+    --             appEduchain = educhain
+    --             customerId = "234"
+    --             customerName = "Andre"
+    --             customerAddress = "Rua Legder 456"
+    --             customerEmail = "andre@educhain.io"
+    --             customerPhone = Some "+351-999-555-5678"
+    --             appTimeStamp = now
+    --             customerDob = date 2010 Jun 05    
 
-    return ()
+    -- -- Verificando se as contas foram criadas corretamente
+    -- customerApplications <- query @CustomerApplication educhain
+    -- assertMsg "Natacha's account not created" (any (\(_, acc) -> acc.customer == natacha) customerApplications)
+    -- assertMsg "Andre's account not created" (any (\(_, acc) -> acc.customer == andre) customerApplications)
 
---}
+    -- -- -- Educhain revisa a aplicação do Andre, criando sua conta
+    -- -- submit educhain do 
+    -- --     exerciseCmd andreCAppId ReviewApplication
 
--- 3. Teste: testContractModification
+    -- return ()
 
-testContractModification: Script () 
-testContractModification = script do 
-    natacha <- allocateParty "Natacha"
-    andre <- allocateParty "Andre"
-    educhain <- allocateParty "Educhain Incentives"
+
+
+-- -- 3. Teste: testContractModification
+
+-- testContractModification: Script () 
+-- testContractModification = script do 
+--     natacha <- allocateParty "Natacha"
+--     andre <- allocateParty "Andre"
+--     educhain <- allocateParty "Educhain Incentives"
     
-    setTime (time (date 2024 May 17) 15 30 0)
-    now <- getTime 
---
-    {-- Natacha cria uma aplicação
-    natachaCAppId <- submit natacha do         
-        createCmd CustomerApplication with  
-            customer = natacha 
-            educhain = educhain 
-            id = ""
-            name = ""
-            address = ""
-            email = ""
-            phone = Some ""
-            timestamp = now 
-            dob = toDateUTC now
+--     setTime (time (date 2024 May 17) 15 30 0)
+--     now <- getTime 
+-- --
+--     -- Natacha cria uma aplicação
+--     natachaCAppId <- submit natacha do         
+--         createCmd CustomerApplication with  
+--             customer = natacha 
+--             educhain = educhain 
+--             id = ""
+--             name = ""
+--             address = ""
+--             email = ""
+--             phone = Some ""
+--             timestamp = now 
+--             dob = toDateUTC now
 
-     -- Natacha preenche os detalhes da aplicação e submete
-    submit natacha do 
-        exerciseCmd natachaCAppId SubmitApplication 
-            with
-                appCustomer = natacha 
-                appEduchain = educhain
-                customerId = "1234"
-                customerName = "Natacha"
-                customerAddress = "Rua do Blockchain 888"
-                customerEmail = "natacha@educhain.io"
-                customerPhone = Some "+351-999-123-1234"
-                appTimeStamp = now
-                customerDob = date 2000 Jun 05    
+--      -- Natacha preenche os detalhes da aplicação e submete
+--     submit natacha do 
+--         exerciseCmd natachaCAppId SubmitApplication 
+--             with
+--                 appCustomer = natacha 
+--                 appEduchain = educhain
+--                 customerId = "1234"
+--                 customerName = "Natacha"
+--                 customerAddress = "Rua do Blockchain 888 9999"
+--                 customerEmail = "natacha@educhain.io"
+--                 customerPhone = Some "+351-999-123-1234"
+--                 appTimeStamp = now
+--                 customerDob = date 2000 Jun 05    
 
-    -- Educhain revisa a aplicação de Natacha, criando sua conta
-    natachaAccountCid <- submit educhain do 
-        exerciseCmd natachaCAppId ReviewApplication 
--}
-    -- Andre cria uma aplicação
-    andreCAppId <- submit andre do         
-        createCmd CustomerApplication with  
-            customer = andre 
-            educhain = educhain 
-            id = ""
-            name = ""
-            address = ""
-            email = ""
-            phone = Some ""
-            timestamp = now 
-            dob = toDateUTC now
+--     -- Educhain revisa a aplicação de Natacha, criando sua conta
+--     natachaAccountCid <- submit educhain do 
+--         exerciseCmd natachaCAppId ReviewApplication 
 
-    -- Andre preenche os detalhes da aplicação e submete
-    submit andre do 
-        exerciseCmd andreCAppId SubmitApplication 
-            with
-                appCustomer = andre 
-                appEduchain = educhain
-                customerId = "234"
-                customerName = "Andre"
-                customerAddress = "Metaverse St"
-                customerEmail = "andre@educhain.io"
-                customerPhone = Some "+351-999-555-5678"
-                appTimeStamp = now
-                customerDob = date 2010 Jun 05    
+--     -- Andre cria uma aplicação
+--     andreCAppId <- submit andre do         
+--         createCmd CustomerApplication with  
+--             customer = andre 
+--             educhain = educhain 
+--             id = ""
+--             name = ""
+--             address = ""
+--             email = ""
+--             phone = Some ""
+--             timestamp = now 
+--             dob = toDateUTC now
+
+--     -- Andre preenche os detalhes da aplicação e submete
+--     submit andre do 
+--         exerciseCmd andreCAppId SubmitApplication 
+--             with
+--                 appCustomer = andre 
+--                 appEduchain = educhain
+--                 customerId = "234"
+--                 customerName = "Andre"
+--                 customerAddress = "Metaverse St 1234"
+--                 customerEmail = "andre@educhain.io"
+--                 customerPhone = Some "+351-999-555-5678"
+--                 appTimeStamp = now
+--                 customerDob = date 2010 Jun 05    
 
    
-  -- Get all applications
-    allApplications <- query @CustomerApplication educhain 
-    -- Get all application Cids
-    let allApplicationCids = map  (\x -> x._1) allApplications
-    -- Get all customer ids
-    let allCustomerIds = map (\x -> x._2.id) allApplications
-    -- make a list of tuples with cids and ids
-    let allCidsAndIds = zip allApplicationCids allCustomerIds 
-     -- Review all applications
-    allAccountCids <- submit educhain do 
-        mapA (\x -> exerciseCmd x._1 ReviewApplication ) allCidsAndIds
+--   -- Get all applications
+--     allApplications <- query @CustomerApplication educhain 
+--     -- Get all application Cids
+--     let allApplicationCids = map  (\x -> x._1) allApplications
+--     -- Get all customer ids
+--     let allCustomerIds = map (\x -> x._2.id) allApplications
+--     -- make a list of tuples with cids and ids
+--     let allCidsAndIds = zip allApplicationCids allCustomerIds 
+--      -- Review all applications
+--     allAccountCids <- submit educhain do 
+--         mapA (\x -> exerciseCmd x._1 ReviewApplication ) allCidsAndIds
 
-  -- Add 1000 points to all accounts
-    allNewAccountCids <- submit educhain do 
-        mapA (\x -> exerciseCmd (fromSome x) AddPoints with newPoints = 100) allAccountCids
+--   -- Add 1000 points to all accounts
+--     allNewAccountCids <- submit educhain do 
+--         mapA (\x -> exerciseCmd (fromSome x) AddPoints with newPoints = 100) allAccountCids
 
-    return ()
---}
+--     return ()
 
 
-{-- 4. Teste: testReviewAndAddPoints
+
+-- 4. Teste: testReviewAndAddPoints
 testReviewAndAddPoints: Script ()
 testReviewAndAddPoints = script do 
     natacha <- allocateParty "Natacha"
@@ -355,4 +357,3 @@ testReviewAndAddPoints = script do
     debug allAccounts
 
     return ()
---}
