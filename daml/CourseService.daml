@@ -1,33 +1,189 @@
 -- CourseService.daml
+
 module CourseService where
 
-import Account
-import Application
+-- Import necessary modules
+import DA.Time
 
-template CourseService
+-- Define type aliases for contract IDs
+type CourseProposalId = ContractId CourseProposal
+type CourseId = ContractId Course
+
+-- Define a record type to represent information about a course
+data CourseInfo = CourseInfo with
+    customer: Party        -- Party enroll the course
+    courseId: Text          -- Id of the course
+    title: Text            -- Title of the course
+    details: Text          -- Details/description of the course
+    soloCourse: Bool       -- Indicates if it's a solo course
+    account : Int          -- Account information for the course
+    course_type: Text      -- Type of the course
+    status: Text           -- Status of the course
+    startDate: Date        -- Start date of the course
+    endDate: Date          -- End date of the course
+        deriving (Show, Eq)
+
+-- Define a typeclass for calculating duration
+class Duration i o where
+    getDuration : i -> o
+
+-- Implement Duration for CourseInfo to Int
+instance Duration CourseInfo Int where
+    getDuration course =
+        let
+            startT: Time
+            startT = time course.startDate 09 00 00
+
+            endT: Time
+            endT = time course.endDate 18 00 00
+
+            diffInRelTime: RelTime
+            diffInRelTime = subTime endT startT
+
+            diffInDays: Int
+            diffInDays = wholeDays diffInRelTime
+
+            diffInWeekDays = diffInDays - (diffInDays / 7 * 2) + 1  -- Account for weekdays
+        in 
+            diffInWeekDays
+
+-- Define a template for a course proposal
+template CourseProposal
   with
-    employee: Party
-    course: Party
+    customer : Party            -- Customer proposing the course
+    educhain : Party            -- Party representing the blockchain platform
+    courseInfo: CourseInfo      -- Information about the course
+    note: Text                  -- Additional notes/comments
   where
-    signatory course
-    observer employee
+    signatory educhain, customer  -- Parties who can sign the contract
 
-    choice CompleteCourse : ContractId Application
+    -- -- Define a key based on educhain and courseInfo
+    -- key (educhain, customer, courseInfo) : (Party, Party, CourseInfo)
+    -- maintainer key._1
+
+    -- Ensure that the end date is later than the start date
+    ensure (courseInfo.startDate < courseInfo.endDate)
+
+    -- Non-consuming choice to propose a course
+    choice Propose: CourseProposalId 
+        controller customer, educhain
+        do
+          return self
+
+    -- Non-consuming choice for educhain to check customer accomplishments
+    choice CustomerAccomplishments: [Text]
+        with
+            accomplishments: [(ContractId AccomplishmentCourse, AccomplishmentCourse)]
+        controller educhain
+        do
+          if null accomplishments then return ["N/A"]
+          else do
+            -- Return a list of course titles and details from accomplishments
+            return $ map (\acc -> acc._2.course.courseInfo.title <> " : " <> acc._2.course.courseInfo.details) accomplishments
+
+    -- Choice for educhain to reject a course proposal
+    choice Reject: ()
       with
-        appId: ContractId Application
-        accountId: ContractId Account
-      controller course
+          feedback: Text
+      controller educhain
       do
-        app <- fetch appId
-        case app.status of
-          Pending -> do
-            -- Exercitar a escolha SubmitApplicationAndSetStatus no contrato Application
-            exercise appId SubmitApplicationAndSetStatus with newStatus = Completed
-            
-            -- Exercitar a escolha AddPoints no contrato Account com um valor de pontos (por exemplo, 10)
-            let pointsToAdd = 10  -- Aqui você pode definir a quantidade de pontos a serem adicionados
-            exercise accountId (AddPoints pointsToAdd)
-            
-            -- Retornar o ContractId da Application após completar o curso
-            return appId
-          _ -> fail "Application is not in Pending status"
+         archive self
+
+    -- Non-consuming choice for customer to revise a course proposal
+    choice Revise: CourseProposalId
+      with
+          newCourseInfo: CourseInfo
+          comment: Text
+      controller customer
+      do
+          assertMsg ("Course info needs to be revised") (this.courseInfo /= newCourseInfo)
+          create this with
+            courseInfo = newCourseInfo
+            note = comment
+
+    -- Choice for customer to cancel the proposal
+    choice Cancel: ()
+      controller customer
+      do
+        archive self
+
+    -- Choice for educhain to approve the course proposal and create a course contract
+    choice Approve: CourseId 
+      with
+          --customer: Party
+          evaluationDate: Date        -- Date when the course evaluation will be completed
+          educhainNote: Optional(Text)  -- Optional note from educhain
+      controller educhain
+      do
+         assertMsg "Course should be finished before the deadline." (evaluationDate > courseInfo.endDate)
+         archive self
+         create Course with
+             courseInfo
+             duration = getDuration courseInfo
+             educhain
+             customer
+             evaluationDate
+             educhainNote
+
+-- Define a template for a course
+template Course
+    with
+        courseInfo: CourseInfo      -- Information about the course
+        duration: Int               -- Duration of the course
+        educhain: Party             -- Party representing the blockchain platform
+        customer: Party
+        evaluationDate: Date        -- Date of course evaluation
+        educhainNote: Optional(Text)  -- Optional note from educhain
+    where
+        signatory educhain, courseInfo.customer  -- Parties who can sign the contract
+
+        -- -- Define a key based on customer and courseInfo
+        -- key (courseInfo.customer, courseInfo):(Party, CourseInfo)
+        -- maintainer key._1
+
+        -- Ensure evaluationDate is after endDate
+        ensure evaluationDate > courseInfo.endDate
+
+        -- Choice for educhain to evaluate a course
+        choice Evaluate: Either (ContractId Course) (ContractId AccomplishmentCourse)
+            with
+                todaysDate: Date           -- Current date
+                feedback: Optional(Text)   -- Optional feedback
+                readyToPublish: Bool       -- Indicates if course is ready to be published
+                points: Int                -- Points associated with the course
+            controller educhain
+            do
+                -- If readyToPublish, create an accomplishment contract; otherwise, update evaluation date and note
+                if readyToPublish then do
+                    newAcc <- create AccomplishmentCourse with
+                        course = this
+                        educhain
+                        customer
+                        points
+                    return (Right newAcc)
+                else do
+                    currCourse <- create this with 
+                        evaluationDate = todaysDate
+                        educhainNote = feedback
+                    return (Left currCourse)
+
+        -- Choice for educhain or course customer to cancel a course
+        choice CancelCourse: ()
+            controller educhain, courseInfo.customer
+            do
+                archive self
+
+-- Define a template for an accomplishment
+template AccomplishmentCourse
+    with
+        course: Course         -- Course associated with the accomplishment
+        educhain: Party        -- Party representing the blockchain platform
+        customer: Party
+        points: Int            -- Points associated with the accomplishment
+    where
+        -- Ensure signatories of Accomplishment match those of Course
+        signatory (signatory course)
+
+        -- -- Define a key based on customer and courseInfo of Course
+        -- key (course.courseInfo.customer, course.courseInfo) : (Party, CourseInfo)
+        -- maintainer key._1

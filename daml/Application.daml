@@ -1,30 +1,144 @@
--- Application.daml
+-- Application.daml 
+
 module Application where
 
-data Status = New | InProgress | Pending | Completed | InvalidStatus | Submitted
-  deriving (Eq, Show)
+import CourseService
 
+-- Template para criar uma aplicação de cliente que será registrada no ledger da Educhain.
+template CustomerApplication 
+    with 
+        id: Text                  -- ID da aplicação do cliente
+        customer: Party           -- Parte representando o cliente
+        educhain: Party           -- Parte representando a Educhain
+        name: Text                -- Nome do cliente
+        address: Text             -- Endereço do cliente
+        email: Text               -- Email do cliente
+        phone: Optional Text      -- Telefone do cliente (opcional)
+        timestamp: Time           -- Timestamp da aplicação
+        dob: Date                 -- Data de nascimento do cliente
+    where 
+        signatory customer        -- Cliente é o signatário
+        observer educhain         -- Educhain é o observador
+         
+        -- Choice para submeter uma aplicação
+        choice SubmitApplication: ContractId CustomerApplication 
+            with 
+                appCustomer: Party         -- Parte do cliente na aplicação
+                appEduchain: Party         -- Parte da Educhain na aplicação
+                customerId: Text           -- ID do cliente
+                customerName: Text         -- Nome do cliente
+                customerAddress: Text      -- Endereço do cliente
+                customerEmail: Text        -- Email do cliente
+                customerPhone: Optional Text -- Telefone do cliente
+                appTimeStamp: Time         -- Timestamp da aplicação
+                customerDob: Date          -- Data de nascimento do cliente
+            controller customer            -- Cliente controla esta escolha
+                do 
+                    -- Cria uma nova aplicação de cliente
+                    create CustomerApplication  
+                        with 
+                            id = customerId
+                            customer = appCustomer
+                            educhain = appEduchain
+                            name = customerName
+                            address = customerAddress
+                            email = customerEmail
+                            phone = customerPhone
+                            timestamp = appTimeStamp
+                            dob = customerDob
+        
+        -- Choice para revisar uma aplicação
+        choice ReviewApplication: Optional (ContractId CAccount)
+            controller educhain            -- Educhain controla esta escolha
+                do 
+                    -- Verifica se a conta já existe
+                    account <- lookupByKey @CAccount (educhain, id)
+                    now <- getTime
+                    case account of
+                        Some _ -> return None  -- Se a conta já existe, retorna None
+                        None -> do
+                            -- Cria uma nova conta de cliente
+                            newAccount <- create CAccount with                                
+                                timestamp = now                                 
+                                points = 10   
+                                customer
+                                educhain
+                                id
+                                name
+                                address
+                                email
+                                phone
+                                dob
+                            return (Some newAccount)
+                        
+        -- Choice para aceitar uma aplicação
+        choice AcceptApplication: ContractId CAccount 
+            with 
+                points: Int                -- Pontos iniciais para a conta do cliente
+            controller educhain            -- Educhain controla esta escolha
+                do 
+                    -- Cria uma nova conta de cliente
+                    create CAccount 
+                        with 
+                            customer = customer
+                            educhain = educhain
+                            id = id
+                            name = name
+                            address = address
+                            email = email
+                            phone = phone
+                            timestamp = timestamp
+                            dob = dob
+                            points = points
 
-template Application
-  with
-    employee: Party
-    course: Party
-    name: Text
-    address: Text
-    email: Text
-    phone: Optional Text
-    timestamp: Time
-    status: Status
-    score: Optional Int
-    comment: Optional Text
-  where
-    signatory course
-    observer employee
+        -- Choice para rejeitar uma aplicação
+        choice RejectApplication: ()
+            controller educhain            -- Educhain controla esta escolha
+                do 
+                    return ()               -- Simplesmente retorna ()
 
-    choice SubmitApplicationAndSetStatus : ContractId Application
-      with
-        newStatus: Status
-      controller employee
-      do
-        create this with status = newStatus
-
+-- Template para representar uma conta de cliente
+template CAccount 
+    with
+        customer: Party           -- Parte representando o cliente
+        educhain: Party           -- Parte representando a Educhain
+        id: Text                  -- ID da conta
+        name: Text                -- Nome do cliente
+        address: Text             -- Endereço do cliente
+        email: Text               -- Email do cliente
+        phone: Optional Text      -- Telefone do cliente (opcional)
+        timestamp: Time           -- Timestamp da conta
+        dob: Date                 -- Data de nascimento do cliente
+        points: Int               -- Pontos acumulados na conta
+    where 
+        signatory customer, educhain   -- Cliente e Educhain são signatários
+        key (educhain, id): (Party, Text)  -- Chave primária composta por Educhain e ID
+        maintainer key._1              -- Educhain é o mantenedor da chave
+    
+        -- Choice para adicionar pontos à conta
+        choice AddPoints : ContractId CAccount 
+            with 
+                newPoints: Int          -- Pontos a serem adicionados
+            controller educhain         -- Educhain controla esta escolha
+            do 
+                -- Cria uma nova conta com os pontos atualizados
+                create this with 
+                    points = points + newPoints
+                    
+        -- Choice para adicionar pontos após completar um curso
+        choice AddCompletedPoints : ContractId CAccount
+            with
+                accomplishment: Bool    -- Indicador se o curso foi completado
+                courseInfo: CourseInfo  -- Informações do curso
+                newPoints: Int          -- Novos pontos a serem adicionados
+            controller educhain         -- Educhain controla esta escolha
+            do
+                if accomplishment then do
+                    -- Verifica se o curso foi completado
+                    --ensure courseInfo.status == "Completed"
+                    let updatedPoints = points + newPoints
+                    -- Cria uma nova conta com os pontos atualizados
+                    create this with points = updatedPoints + 100
+                else
+                    -- Falha se o curso não foi completado
+                    fail "Course incomplete, finalize it to receive your points"
