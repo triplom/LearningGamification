@@ -1,98 +1,144 @@
--- Application.daml
+-- Application.daml 
 
 module Application where
 
-import Daml.Script
-import DA.Date (toDateUTC, date, Month(Jan), Month(Mar))
-import DA.Time (time)
-import DA.Functor (void)
+import CourseService
 
--- Define a custom data type to represent the status of an application
---data Status = New | InProgress | Pending | Completed | InvalidStatus | Submitted
- -- deriving (Show, Eq)
+-- Template para criar uma aplicação de cliente que será registrada no ledger da Educhain.
+template CustomerApplication 
+    with 
+        id: Text                  -- ID da aplicação do cliente
+        customer: Party           -- Parte representando o cliente
+        educhain: Party           -- Parte representando a Educhain
+        name: Text                -- Nome do cliente
+        address: Text             -- Endereço do cliente
+        email: Text               -- Email do cliente
+        phone: Optional Text      -- Telefone do cliente (opcional)
+        timestamp: Time           -- Timestamp da aplicação
+        dob: Date                 -- Data de nascimento do cliente
+    where 
+        signatory customer        -- Cliente é o signatário
+        observer educhain         -- Educhain é o observador
+         
+        -- Choice para submeter uma aplicação
+        choice SubmitApplication: ContractId CustomerApplication 
+            with 
+                appCustomer: Party         -- Parte do cliente na aplicação
+                appEduchain: Party         -- Parte da Educhain na aplicação
+                customerId: Text           -- ID do cliente
+                customerName: Text         -- Nome do cliente
+                customerAddress: Text      -- Endereço do cliente
+                customerEmail: Text        -- Email do cliente
+                customerPhone: Optional Text -- Telefone do cliente
+                appTimeStamp: Time         -- Timestamp da aplicação
+                customerDob: Date          -- Data de nascimento do cliente
+            controller customer            -- Cliente controla esta escolha
+                do 
+                    -- Cria uma nova aplicação de cliente
+                    create CustomerApplication  
+                        with 
+                            id = customerId
+                            customer = appCustomer
+                            educhain = appEduchain
+                            name = customerName
+                            address = customerAddress
+                            email = customerEmail
+                            phone = customerPhone
+                            timestamp = appTimeStamp
+                            dob = customerDob
+        
+        -- Choice para revisar uma aplicação
+        choice ReviewApplication: Optional (ContractId CAccount)
+            controller educhain            -- Educhain controla esta escolha
+                do 
+                    -- Verifica se a conta já existe
+                    account <- lookupByKey @CAccount (educhain, id)
+                    now <- getTime
+                    case account of
+                        Some _ -> return None  -- Se a conta já existe, retorna None
+                        None -> do
+                            -- Cria uma nova conta de cliente
+                            newAccount <- create CAccount with                                
+                                timestamp = now                                 
+                                points = 10   
+                                customer
+                                educhain
+                                id
+                                name
+                                address
+                                email
+                                phone
+                                dob
+                            return (Some newAccount)
+                        
+        -- Choice para aceitar uma aplicação
+        choice AcceptApplication: ContractId CAccount 
+            with 
+                points: Int                -- Pontos iniciais para a conta do cliente
+            controller educhain            -- Educhain controla esta escolha
+                do 
+                    -- Cria uma nova conta de cliente
+                    create CAccount 
+                        with 
+                            customer = customer
+                            educhain = educhain
+                            id = id
+                            name = name
+                            address = address
+                            email = email
+                            phone = phone
+                            timestamp = timestamp
+                            dob = dob
+                            points = points
 
- 
--- Define a template for an application form
-template ApplicationForm
-  with
-     -- Define the parties involved in the contract
-    bcplatform : Party  -- Party representing the blockchain platform
-    employee : Party     -- Party representing the employee
-    id: Int              -- Id of the application
-    status : Text      -- Status of the application
-    name : Text          -- Name of the applicant
-    address : Text       -- Address of the applicant
-    email : Text         -- Email of the applicant
-    phone : Text        -- Phone number of the applicant
-    timestamp : Time     -- Timestamp of the application
-    amount : Numeric 2      -- Amount associated with the application
-    comment : Text  -- Optional comment related to the application
+        -- Choice para rejeitar uma aplicação
+        choice RejectApplication: ()
+            controller educhain            -- Educhain controla esta escolha
+                do 
+                    return ()               -- Simplesmente retorna ()
+
+-- Template para representar uma conta de cliente
+template CAccount 
+    with
+        customer: Party           -- Parte representando o cliente
+        educhain: Party           -- Parte representando a Educhain
+        id: Text                  -- ID da conta
+        name: Text                -- Nome do cliente
+        address: Text             -- Endereço do cliente
+        email: Text               -- Email do cliente
+        phone: Optional Text      -- Telefone do cliente (opcional)
+        timestamp: Time           -- Timestamp da conta
+        dob: Date                 -- Data de nascimento do cliente
+        points: Int               -- Pontos acumulados na conta
+    where 
+        signatory customer, educhain   -- Cliente e Educhain são signatários
+        key (educhain, id): (Party, Text)  -- Chave primária composta por Educhain e ID
+        maintainer key._1              -- Educhain é o mantenedor da chave
     
-  where
-  -- Parties who can sign the contract
-  signatory bcplatform, employee
-
-  -- Ensure that the amount associated with the application is greater than 0.0
-  ensure amount > 0.0
-
-  -- Define a choice to submit the application
-  choice ApplicationRequestSubmitted : ContractId ApplicationForm
-    controller employee  -- Only the employee party can control this choice
-    do
-      -- Get the current time
-      now <- getTime 
-      -- Create a new application form contract with the submitted status
-      create ApplicationForm 
-        with 
-        status = "Submitted"
-        timestamp = now
-        comment = "Application submitted"
-        amount = 0.0
-        name = "John Dois"
-        address = "1234 Main St"
-        email = "johndois@example.com"
-        phone = "Nothing"
-        id = 1
-        bcplatform = bcplatform
-        employee = employee
-
-  choice ApplicationAccepted: ContractId ApplicationForm
-    controller bcplatform
-    do
-    -- Get the current time
-    now <- getTime
-    -- Create a new application form contract with the accepted status
-    create this with status = "Accepted"
-
-
-
--- Test to create an application form contract with status submitted
-testCreateApp: Script ()
-testCreateApp = script do
-  -- Allocate the involved parties in the test
-  bcplatform <- allocateParty "Blockchain Course"
-  employee <- allocateParty "Employee"
-
-  -- Get the current time
-  now <- getTime
-
-  -- Create an application form contract with invalid status
-  employeeAppCid <- submit employee do
-    createCmd ApplicationForm with
-      bcplatform
-      employee = employee
-      name = ""
-      address = ""
-      email = ""
-      phone = ""
-      timestamp = now
-      amount = 100.0
-      id = 001
-      status = "InvalidStatus"
-      comment = ""
-      
-  
-  -- Blockchain Platform accepts the application
-  void $ submit bcplatform $ exerciseCmd employeeAppCid ApplicationAccepted
-
-
+        -- Choice para adicionar pontos à conta
+        choice AddPoints : ContractId CAccount 
+            with 
+                newPoints: Int          -- Pontos a serem adicionados
+            controller educhain         -- Educhain controla esta escolha
+            do 
+                -- Cria uma nova conta com os pontos atualizados
+                create this with 
+                    points = points + newPoints
+                    
+        -- Choice para adicionar pontos após completar um curso
+        choice AddCompletedPoints : ContractId CAccount
+            with
+                accomplishment: Bool    -- Indicador se o curso foi completado
+                courseInfo: CourseInfo  -- Informações do curso
+                newPoints: Int          -- Novos pontos a serem adicionados
+            controller educhain         -- Educhain controla esta escolha
+            do
+                if accomplishment then do
+                    -- Verifica se o curso foi completado
+                    --ensure courseInfo.status == "Completed"
+                    let updatedPoints = points + newPoints
+                    -- Cria uma nova conta com os pontos atualizados
+                    create this with points = updatedPoints + 100
+                else
+                    -- Falha se o curso não foi completado
+                    fail "Course incomplete, finalize it to receive your points"
