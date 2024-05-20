@@ -65,7 +65,7 @@ template CourseProposal
     ensure (courseInfo.startDate < courseInfo.endDate)
 
     -- Non-consuming choice to propose a course
-    choice Propose: CourseProposalId 
+    nonconsuming choice Propose: CourseProposalId 
         controller customer, educhain
         do
           return self
@@ -90,13 +90,15 @@ template CourseProposal
          archive self
 
     -- choice for customer to revise a course proposal
-    choice Revise: CourseProposalId
+    nonconsuming choice Revise: CourseProposalId
       with
+          --otherCourseProposalId: ContractId CourseProposal
           newCourseInfo: CourseInfo
           comment: Text
-      controller customer
+      controller educhain
       do
           assertMsg ("Course info needs to be revised") (this.courseInfo /= newCourseInfo)
+          --archive self
           create this with
             courseInfo = newCourseInfo
             note = comment
@@ -108,12 +110,12 @@ template CourseProposal
         archive self
 
     -- Choice for educhain to approve the course proposal and create a course contract
-    choice Approve: CourseProposalId
+    nonconsuming choice Approve: CourseProposalId
      
       with
           newCourseInfo: CourseInfo
           comment: Text
-      controller customer
+      controller educhain
       do
           assertMsg ("Course Approved") (this.courseInfo /= newCourseInfo)
           create this with
@@ -169,16 +171,31 @@ template Course
                 archive self
 
 -- Define a template for an accomplishment
+-- Template to represent a course accomplishment
 template AccomplishmentCourse
     with
-        course: Course         -- Course associated with the accomplishment
-        educhain: Party        -- Party representing the blockchain platform
-        customer: Party
-        points: Int            -- Points associated with the accomplishment
+        course: Course            -- Course associated with the accomplishment
+        educhain: Party           -- Party representing the blockchain platform
+        customer: Party           -- Customer who completed the course
+        points: Int               -- Points associated with the accomplishment
     where
         -- Ensure signatories of Accomplishment match those of Course
-        signatory (signatory course)
+        signatory educhain
+        observer customer
 
-        -- -- Define a key based on customer and courseInfo of Course
-        -- key (course.courseInfo.customer, course.courseInfo) : (Party, CourseInfo)
-        -- maintainer key._1
+        -- Non-consuming choice for educhain to mark the course as accomplished
+        nonconsuming choice Accomplished: ContractId AccomplishmentCourse
+            with
+                newCourseInfo: CourseInfo  -- Updated course info
+                comment: Text              -- Comment about the accomplishment
+                points: Int                -- Points to be awarded
+            controller educhain
+            do
+                -- Ensure the course information has changed
+                assertMsg "Course Completed" (this.course.courseInfo /= newCourseInfo)
+                -- Create the updated accomplishment contract
+                create this with
+                    course = this.course with
+                        courseInfo = newCourseInfo
+                    --note = comment
+                    points = points

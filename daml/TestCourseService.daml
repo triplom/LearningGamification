@@ -15,7 +15,7 @@ testCourseProposal = script do
   andre <- allocateParty "Andre"
   educhain <- allocateParty "Educhain Incentives"
     
-  setTime (time (date 2024 May 19) 10 35 0)
+  setTime (time (date 2024 May 20) 10 35 0)
   now <- getTime 
    
   -- Cria uma proposta de curso para Natacha
@@ -33,8 +33,8 @@ testCourseProposal = script do
             account = 123
             course_type = "Online"
             status = "Active"
-            startDate = date 2024 Jun 01
-            endDate = date 2024 Jun 03
+            startDate = date 2024 Jun 02
+            endDate = date 2024 Jun 15
         note = "Please review the proposal"
   
   -- Revisão da proposta de curso para Natacha
@@ -49,14 +49,14 @@ testCourseProposal = script do
           account = 123
           course_type = "Online"
           status = "Active (Revised)"
-          startDate = date 2024 Jun 01
-          endDate = date 2024 Jun 03 
+          startDate = date 2024 Jun 10
+          endDate = date 2024 Jun 15 
         comment = "Updated course details"
   
   -- -- Aprovação da proposta de curso para Natacha
   approvedNatachaCourseCid <- submit educhain do
       exerciseCmd natachaCourseProposalCid Approve with
-        newCourseInfo = CourseInfo with
+        newCourseInfo2 = CourseInfo with
           customer = natacha
           courseId = "1"
           title = "Introduction to Blockchain (Approved)"
@@ -106,8 +106,8 @@ testCourseProposal = script do
   
   -- Aprovação da proposta de curso para Andre
   approvedAndreCourseCid <- submit educhain do
-    exerciseCmd andreCourseProposalCid Approve with
-      newCourseInfo = CourseInfo with
+    exerciseCmd revisedAndreCourseProposalCid Approve with
+      newCourseInfo2 = CourseInfo with
           customer = andre
           courseId = "2"
           title = "Advanced Blockchain (Approved)"
