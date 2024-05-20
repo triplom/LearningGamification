@@ -89,7 +89,7 @@ template CourseProposal
       do
          archive self
 
-    -- Non-consuming choice for customer to revise a course proposal
+    -- choice for customer to revise a course proposal
     choice Revise: CourseProposalId
       with
           newCourseInfo: CourseInfo
@@ -108,22 +108,17 @@ template CourseProposal
         archive self
 
     -- Choice for educhain to approve the course proposal and create a course contract
-    choice Approve: CourseId 
+    choice Approve: CourseProposalId
+     
       with
-          --customer: Party
-          evaluationDate: Date        -- Date when the course evaluation will be completed
-          educhainNote: Optional(Text)  -- Optional note from educhain
-      controller educhain
+          newCourseInfo: CourseInfo
+          comment: Text
+      controller customer
       do
-         assertMsg "Course should be finished before the deadline." (evaluationDate > courseInfo.endDate)
-         archive self
-         create Course with
-             courseInfo
-             duration = getDuration courseInfo
-             educhain
-             customer
-             evaluationDate
-             educhainNote
+          assertMsg ("Course Approved") (this.courseInfo /= newCourseInfo)
+          create this with
+            courseInfo = newCourseInfo
+            note = comment
 
 -- Define a template for a course
 template Course
