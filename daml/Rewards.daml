@@ -1,6 +1,5 @@
 module Rewards where
 
-import Daml.Script
 
 -- Definição de diferentes tipos de ativos que podem ser trocados
 data AssetType = Cloth | Shoe | Toy | GiftCard deriving (Eq, Show)
