@@ -1,0 +1,80 @@
+
+module InitialState.Scripts where
+
+import InitialState.Points
+
+import Daml.Script
+import DA.Action
+import DA.Foldable (forA_)
+
+data TestParties = TestParties with
+  pEduchain : Party
+  pNatacha : Party
+  pAndre : Party
+
+data TestUsers = TestUsers with
+  uEduchain : UserId
+  uNatacha : UserId
+  uAndre : UserId
+
+initParties : Script TestParties
+initParties = do
+  let allocate t = allocatePartyWithHint t (PartyIdHint t)
+  pEduchain <- allocate "Educhain"
+  pNatacha <- allocate "Natacha"
+  pAndre <- allocate "Andre"
+
+  return (TestParties with ..)
+
+initUsers : TestParties -> Script TestUsers
+initUsers TestParties{..} = do
+  let 
+    makeUser id p rs = do
+      uid <- validateUserId id
+      let 
+        u = User with 
+          userId = uid
+          primaryParty = Some p
+      createUser u (CanActAs p :: rs)
+      return uid
+  uEduchain <- makeUser "educhain" pEduchain []
+  uNatacha <- makeUser "natacha" pNatacha []
+  uAndre <- makeUser "andre" pAndre []
+
+  return (TestUsers with ..)
+
+initCash : Script (TestParties, TestUsers)
+initCash = do
+  ps@TestParties{..} <- initParties
+  us@TestUsers{..} <- initUsers ps
+
+  -- Issue some cash in the form of transfer proposals.
+  let position = Position with
+        issuer = pEduchain
+        owner = pEduchain
+        obs = []
+        quantity = 10.0
+
+  -- 5 positions of $1 for Natacha
+  replicateA_ 5 $ submitUser uEduchain do
+    createCmd TransferProposal with
+        position
+        newOwner = pNatacha 
+
+  -- 3 positions of $1 for Andre
+  replicateA_ 3 $ submitUser uEduchain do
+    createCmd TransferProposal with
+        position
+        newOwner = pAndre
+
+  -- Natacha accepts her transfer proposals
+  natachaProposals <- query @TransferProposal pNatacha
+  forA_ natachaProposals (\p -> submit pNatacha do 
+    exerciseCmd p._1 Accept)
+
+  -- Andre accepts his transfer proposals
+  andreProposals <- query @TransferProposal pAndre  
+  forA_ andreProposals (\p -> submit pAndre do 
+    exerciseCmd p._1 Accept)
+  
+  return (ps, us)

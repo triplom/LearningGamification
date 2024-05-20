@@ -1,0 +1,54 @@
+module Rewards where
+
+
+-- Definição de diferentes tipos de ativos que podem ser trocados
+data AssetType = Cloth | Shoe | Toy | GiftCard deriving (Eq, Show)
+
+-- Template Mutual representa a relação de pontos entre o comerciante e o cliente
+template Mutual
+  with
+      merchant: Party  -- Parte representando o comerciante
+      customer: Party  -- Parte representando o cliente
+      points: Int      -- Pontos que o cliente possui
+      assets: [AssetType]  -- Lista de ativos disponíveis para troca
+  where
+    signatory customer, merchant  -- Cliente e comerciante são signatários
+
+    -- Choice para transferir pontos para um novo proprietário
+    choice MutualTransfer: ContractId Mutual
+      with
+        newOwner: Party  -- Novo proprietário dos pontos
+      controller customer, newOwner
+      do
+        -- Transfere os pontos para o novo proprietário
+        create this with
+            customer = newOwner
+
+-- Template ExchangeAssets permite a troca de pontos por ativos
+template ExchangeAssets
+  with
+    merchant: Party  -- Parte representando o comerciante
+    customer: Party  -- Parte representando o cliente
+  where
+    signatory merchant, customer  -- Comerciante e cliente são signatários
+
+    -- Choice não consumível para enviar um ativo ao cliente
+    nonconsuming choice SendAsset: ContractId Mutual
+      with
+        mutualCid: ContractId Mutual  -- Contract ID da relação de pontos
+        asset: AssetType  -- Ativo a ser enviado
+      controller merchant
+      do
+        mutual <- fetch mutualCid  -- Obtém a relação de pontos
+
+        -- Validações
+        assertMsg "Pontos insuficientes" (mutual.points >= 100)
+        assertMsg "Comerciante inválido" (merchant == mutual.merchant)
+
+        -- Deduz 100 pontos e adiciona o novo ativo
+        let updatedMutual = mutual with
+            points = mutual.points - 100
+            assets = asset :: mutual.assets
+
+        -- Atualiza o contrato Mutual com os novos valores
+        create updatedMutual

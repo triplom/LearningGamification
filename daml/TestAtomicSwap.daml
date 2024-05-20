@@ -1,0 +1,94 @@
+module TestAtomicSwap where
+
+import Setup
+import AtomicSwap
+import Daml.Script
+
+testAtomicSwap : Script ()
+testAtomicSwap = script do
+  (testParties@TestParties{..}) <- setupTestParties
+
+  educhainAssetCid1 <- submit educhain do
+    createCmd Asset with 
+      issuer = educhain
+      owner = educhain
+      points = 1000
+      reward = [GiftCard, Voucher]
+      observers = []
+
+  educhainAssetCid2 <- submit educhain do
+    createCmd Asset with 
+      issuer = educhain
+      owner = educhain
+      points = 200
+      reward = [Voucher, GiftCard]
+      observers = []
+
+  mergedEduchainAssetCid <- submit educhain do
+    exerciseCmd educhainAssetCid1 Asset_Merge with
+      otherAssetCid = educhainAssetCid2
+
+  splittedEduchainAssetRecord <- submit educhain do
+    exerciseCmd mergedEduchainAssetCid Asset_Split with
+      splitPoints = 100
+      splitReward = [Voucher]
+
+  educhainToNatachaCid <- submit educhain do
+    exerciseCmd splittedEduchainAssetRecord.splitAsset Asset_Transfer with
+      recipient = natacha
+
+  natachaAssetCid <- submit natacha do
+    exerciseCmd educhainToNatachaCid AssetTransferProposal_Accept
+
+  educhainToAndreCid <- submit educhain do
+    exerciseCmd splittedEduchainAssetRecord.remainder Asset_Transfer with
+      recipient = andre
+
+  andreAssetCid1 <- submit andre do
+    exerciseCmd educhainToAndreCid AssetTransferProposal_Accept
+
+  natachaToAndreCid <- submit natacha do
+    exerciseCmd natachaAssetCid Asset_Transfer with
+      recipient = andre
+  
+  andreAssetCid2 <- submit andre do
+    exerciseCmd natachaToAndreCid AssetTransferProposal_Accept
+
+  -- ===================================== ATOMIC SWAP TEST =====================================
+
+  parceirosAssetCid <- submit parceiros do
+    createCmd Asset with
+      issuer = parceiros
+      owner = parceiros
+      points = 100
+      reward = [Voucher, GiftCard]
+      observers = []
+
+  parceirosToNatachaCid <- submit parceiros do
+    exerciseCmd parceirosAssetCid Asset_Transfer with
+      recipient = natacha
+
+  natachaPointsCid <- submit natacha do
+    exerciseCmd parceirosToNatachaCid AssetTransferProposal_Accept
+
+  natachaPointsWithObsCid <- submit natacha do
+    exerciseCmd natachaPointsCid Asset_SetObservers with
+      newObservers = [andre]
+
+  natachaSwapAndreCid <- submit natacha do
+    createCmd SwapProposal with
+      initiator = natacha
+      recipient = andre
+      offerCid = natachaPointsWithObsCid
+      requestedAsset = Asset with
+        issuer = educhain
+        owner = andre
+        points = 100
+        reward = [GiftCard]
+        observers = []
+
+  submit andre do
+    exerciseCmd natachaSwapAndreCid SwapProposal_Accept with
+      assetCid = andreAssetCid2
+
+  pure ()

@@ -1,0 +1,77 @@
+module ExtensibleSwap.Assets where 
+
+import ExtensibleSwap.Interfaces
+
+template Points 
+  with 
+    issuer: Party 
+    owner: Party 
+    obs: [Party]
+    quantity: Decimal 
+  where 
+    signatory [issuer, owner] 
+    observer obs 
+
+    interface instance IAsset for Points where 
+      view = VAsset with 
+        assetType = "Points"
+        .. 
+      setOwner newOwner = toInterface (this with owner = newOwner)
+      setObs newObs = toInterface (this with obs = newObs)
+      setQuantity newQuantity = toInterface (this with quantity = newQuantity)
+      transferTo newOwner = toInterface $ PointsTransferProposal with points = this; ..
+     
+-----------------------------------
+
+template PointsTransferProposal 
+  with 
+    newOwner: Party 
+    points: Points 
+
+  where 
+    signatory (signatory points)
+    observer newOwner 
+
+    interface instance ITransferProposal for PointsTransferProposal where 
+      view = VTransferProposal with 
+        newOwner = newOwner 
+        vasset = view $ toInterface @IAsset points 
+      asset = toInterface @IAsset points
+
+
+---------------
+template Reward 
+  with 
+    issuer: Party 
+    owner: Party 
+    obs: [Party]
+    quantity: Decimal 
+  where 
+    signatory [issuer, owner] 
+    observer obs 
+
+    interface instance IAsset for Reward where 
+      view = VAsset with 
+        assetType = "Reward"
+        .. 
+      setOwner newOwner = toInterface (this with owner = newOwner)
+      setObs newObs = toInterface (this with obs = newObs)
+      setQuantity newQuantity = toInterface (this with quantity = newQuantity)
+      transferTo newOwner = toInterface $ RewardTransferProposal with reward = this; ..
+    
+-----------------------------------
+
+template RewardTransferProposal 
+  with 
+    newOwner: Party 
+    reward: Reward 
+
+  where 
+    signatory (signatory reward)
+    observer newOwner 
+
+    interface instance ITransferProposal for RewardTransferProposal where 
+      view = VTransferProposal with 
+        newOwner = newOwner 
+        vasset = view $ toInterface @IAsset reward 
+      asset = toInterface @IAsset reward
