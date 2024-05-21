@@ -1,0 +1,18 @@
+module Setup where
+
+import Daml.Script
+
+data TestParties = TestParties with
+     natacha: Party
+     andre: Party
+     educhain: Party
+     parceiros: Party
+
+setupTestParties : Script TestParties
+setupTestParties = script do
+    natacha <- allocateParty "Natacha"
+    andre <- allocateParty "Andre"
+    educhain <- allocateParty "Educhain"
+    parceiros <- allocateParty "Parceiros"
+
+    pure TestParties with ..

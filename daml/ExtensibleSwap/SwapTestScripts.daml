@@ -1,0 +1,103 @@
+module ExtensibleSwap.SwapTestScripts where 
+
+import Daml.Script
+
+import ExtensibleSwap.Assets
+import ExtensibleSwap.Interfaces
+import ExtensibleSwap.Swap
+
+import DA.Action (replicateA_)
+import DA.Foldable (forA_)
+
+data TestParties = TestParties with
+  pEduchain : Party
+  pNatacha : Party
+  pAndre : Party
+
+initParties : Script TestParties
+initParties = do
+  let allocate t = allocatePartyWithHint t (PartyIdHint t)
+  pEduchain <- allocate "Educhain"
+  pNatacha <- allocate "Natacha"
+  pAndre <- allocate "Andre"
+
+  return (TestParties with ..)
+
+initAssets : Script TestParties
+initAssets = do
+  ps@TestParties{..} <- initParties
+
+  let 
+    points = Points with 
+      issuer = pEduchain
+      owner = pEduchain 
+      obs = []
+      quantity = 1.0
+
+  let 
+    reward = Reward with 
+      issuer = pEduchain
+      owner = pEduchain
+      obs = []
+      quantity = 1.0
+
+  -- 5 points of $1 for Natacha
+  replicateA_ 5 $ submit pEduchain do
+    createCmd PointsTransferProposal with
+       newOwner = pNatacha
+       points
+
+  -- 5 reward of $1 for Andre
+  replicateA_ 5 $ submit pEduchain do
+    createCmd RewardTransferProposal with
+        newOwner = pAndre
+        reward
+  
+      -- Accept all transfer proposals
+  natachaProposals <- query @PointsTransferProposal pNatacha 
+  submit pNatacha do
+    forA_ natachaProposals (\proposal -> do 
+      exerciseCmd (toInterfaceContractId @ITransferProposal proposal._1) AcceptTransfer)
+
+  andreProposals <- query @RewardTransferProposal pAndre 
+  submit pAndre do 
+    forA_ andreProposals (\proposal -> do 
+      exerciseCmd (toInterfaceContractId @ITransferProposal proposal._1) AcceptTransfer)
+
+  return (ps)
+
+testSwap : Script () 
+testSwap = do 
+
+  ps@TestParties{..} <- initAssets 
+
+  -- Natacha gets one Points asset to swap
+  (cid, points)::_ <- query @Points pNatacha 
+
+  --Natacha add Andre as an observer
+  cid <- submit pNatacha do 
+    exerciseCmd (toInterfaceContractId @IAsset cid) SetObservers with newObs = [pAndre]
+
+  --Prepare swap specs
+  let 
+    offerSpec = (pEduchain, "Points", points.quantity)
+    requestedSpec = (pEduchain, "Reward", points.quantity) 
+
+  --Natacha creates SwapProposal
+  swapProposalCid <- submit pNatacha do 
+    createCmd AssetSwapProposal with 
+      requester = pNatacha 
+      receiver = pAndre 
+      offerSpec
+      requestedSpec
+      offerCid = toInterfaceContractId @IAsset cid 
+
+  --Andre gets a reward as per the spec  
+  (cid, _)::_ <- queryFilter @Reward pAndre (\reward -> reward.owner == pAndre && reward.quantity == requestedSpec._3)
+  
+  --Andre Settles the swap
+  submit pAndre do 
+    exerciseCmd swapProposalCid Settle with requestedCid = toInterfaceContractId @IAsset cid
+
+
+  return ()
