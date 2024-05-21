@@ -6,7 +6,7 @@ data SplitResult = SplitResult with
     deriving (Eq, Show)
 
 -- Definição de diferentes tipos de ativos que podem ser trocados
-data AssetType = Cloth | Shoe | Toy | GiftCard | Voucher deriving (Eq, Show)
+data AssetType = GiftCard | Voucher deriving (Eq, Show)
 
 template Asset
   with

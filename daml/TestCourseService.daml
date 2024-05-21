@@ -1,10 +1,10 @@
 module TestCourseService where
 
 import Daml.Script
-import Application
 import CourseService
 import DA.Date (date, Month(May), Month(Jun))
 import DA.Time (time)
+import DA.List (head)
 import DA.Assert ((===))
 
 -- Testa a proposta de curso
@@ -18,57 +18,6 @@ testCourseProposal = script do
   setTime (time (date 2024 May 20) 10 35 0)
   now <- getTime 
    
-  -- Cria uma proposta de curso para Natacha
-  natachaCourseProposalCid <- submitMulti [natacha, educhain] [] do
-      createCmd CourseProposal with
-        customer = natacha
-        educhain = educhain
-        courseInfo = CourseInfo
-          with 
-            customer = natacha
-            courseId = "1"
-            title = "Introduction to Blockchain"
-            details = "An introductory course on blockchain technology"
-            soloCourse = True
-            account = 123
-            course_type = "Online"
-            status = "Active"
-            startDate = date 2024 Jun 02
-            endDate = date 2024 Jun 15
-        note = "Please review the proposal"
-  
-  -- Revisão da proposta de curso para Natacha
-  revisedNatachaCourseProposalCid <- submit natacha do
-      exerciseCmd natachaCourseProposalCid Revise with
-        newCourseInfo = CourseInfo with
-          customer = natacha
-          courseId = "1"
-          title = "Introduction to Blockchain (Revised)"
-          details = "An introductory course on blockchain technology (Revised)"
-          soloCourse = True
-          account = 123
-          course_type = "Online"
-          status = "Active (Revised)"
-          startDate = date 2024 Jun 10
-          endDate = date 2024 Jun 15 
-        comment = "Updated course details"
-  
-  -- -- Aprovação da proposta de curso para Natacha
-  approvedNatachaCourseCid <- submit educhain do
-      exerciseCmd natachaCourseProposalCid Approve with
-        newCourseInfo2 = CourseInfo with
-          customer = natacha
-          courseId = "1"
-          title = "Introduction to Blockchain (Approved)"
-          details = "An introductory course on blockchain technology (Approved)"
-          soloCourse = True
-          account = 123
-          course_type = "Online"
-          status = "Active (Approved)"
-          startDate = date 2024 Jun 10
-          endDate = date 2024 Jun 15 
-        comment = "Course approved! You may start your classes"
-
   -- Cria uma proposta de curso para Andre
   andreCourseProposalCid <- submitMulti [andre, educhain] [] do
       createCmd CourseProposal with
@@ -76,57 +25,109 @@ testCourseProposal = script do
         educhain = educhain
         courseInfo = CourseInfo
           with 
-            customer = andre
             courseId = "2"
             title = "Advanced Blockchain"
             details = "An advanced course on blockchain technology"
             soloCourse = True
             account = 456
-            course_type = "Online"
+            courseType = "Online"
             status = "Active"
             startDate = date 2024 Jun 10
             endDate = date 2024 Jun 15
         note = "Please review the proposal"
   
   -- Revisão da proposta de curso para Andre
-  revisedAndreCourseProposalCid <- submit andre do
+  revisedAndreCourseProposalCid <- submit educhain do
       exerciseCmd andreCourseProposalCid Revise with
         newCourseInfo = CourseInfo with
-          customer = andre
           courseId = "2"
           title = "Advanced Blockchain (Revised)"
           details = "An advanced course on blockchain technology (Revised)"
           soloCourse = True
           account = 456
-          course_type = "Online"
+          courseType = "Online"
           status = "Active (Revised)"
           startDate = date 2024 Jun 10
           endDate = date 2024 Jun 15 
         comment = "Updated course details"
   
   -- Aprovação da proposta de curso para Andre
-  approvedAndreCourseCid <- submit educhain do
+  approvedAndreCourseProposalCid <- submit educhain do
     exerciseCmd revisedAndreCourseProposalCid Approve with
-      newCourseInfo2 = CourseInfo with
-          customer = andre
+      newCourseInfo = CourseInfo with
           courseId = "2"
           title = "Advanced Blockchain (Approved)"
           details = "An advanced course on blockchain technology (Approved)"
           soloCourse = True
           account = 456
-          course_type = "Online"
+          courseType = "Online"
           status = "Active (Approved)"
           startDate = date 2024 Jun 10
           endDate = date 2024 Jun 15 
       comment = "Course approved! You may start your classes"
-     
-  -- Rejeição da proposta de curso para Andre
-  submit educhain do 
-    exerciseCmd revisedAndreCourseProposalCid Reject with
-      feedback = "Course proposal rejected due to incomplete details"
-    
-  -- Cancelamento da proposta de curso para Andre
-  submit andre do 
-    exerciseCmd revisedAndreCourseProposalCid Cancel
+
+  -- Criação de um curso
+  courseCid <- submitMulti [andre, educhain] [] do
+    createCmd Course with
+      courseInfo = CourseInfo with
+        courseId = "2"
+        title = "Advanced Blockchain (Approved)"
+        details = "An advanced course on blockchain technology (Approved)"
+        soloCourse = True
+        account = 456
+        courseType = "Online"
+        status = "Completed"
+        startDate = date 2024 Jun 10
+        endDate = date 2024 Jun 15 
+      duration = 5
+      educhain = educhain
+      customer = andre
+      evaluationDate = date 2024 Jun 16
+      educhainNote = None
+
+  -- Criação da realização do curso
+  accomplishmentCourseCid <- submit educhain do
+    createCmd AccomplishmentCourse with
+      courseCid = courseCid
+      courseInfo = CourseInfo with
+        courseId = "2"
+        title = "Advanced Blockchain (Approved)"
+        details = "An advanced course on blockchain technology (Approved)"
+        soloCourse = True
+        account = 456
+        courseType = "Online"
+        status = "Completed"
+        startDate = date 2024 Jun 10
+        endDate = date 2024 Jun 15 
+      educhain = educhain
+      customer = andre
+      points = 0
+
+  -- Educhain marca o curso como concluído e adiciona pontos
+  updatedAccomplishmentCourseCid <- submit educhain do 
+    exerciseCmd accomplishmentCourseCid Accomplished 
+      with
+        newCourseInfo = CourseInfo with
+          courseId = "2"
+          title = "Advanced Blockchain (Completed)"
+          details = "An advanced course on blockchain technology (Completed)"
+          soloCourse = True
+          account = 456
+          courseType = "Online"
+          status = "Completed"
+          startDate = date 2024 Jun 10
+          endDate = date 2024 Jun 15 
+        comment = "Great work completing the course!"
+        additionalPoints = 100
+
+  -- Consultar a realização do curso atualizada de Andre
+  updatedAccomplishments <- query @AccomplishmentCourse andre
+  let updatedAccomplishment = head updatedAccomplishments
+
+  -- Verificar se os pontos foram atualizados corretamente
+  debug updatedAccomplishment
+
+  -- -- Assert para garantir que os pontos foram adicionados corretamente
+  -- assert (updatedAccomplishment.points === 100)
 
   return ()

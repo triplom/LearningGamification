@@ -1,6 +1,5 @@
 module Rewards where
 
-
 -- Definição de diferentes tipos de ativos que podem ser trocados
 data AssetType = Cloth | Shoe | Toy | GiftCard deriving (Eq, Show)
 
@@ -18,7 +17,7 @@ template Mutual
     choice MutualTransfer: ContractId Mutual
       with
         newOwner: Party  -- Novo proprietário dos pontos
-      controller customer, newOwner
+      controller customer
       do
         -- Transfere os pontos para o novo proprietário
         create this with
@@ -29,6 +28,7 @@ template ExchangeAssets
   with
     merchant: Party  -- Parte representando o comerciante
     customer: Party  -- Parte representando o cliente
+    pointsRequired: Int  -- Pontos necessários para a troca
   where
     signatory merchant, customer  -- Comerciante e cliente são signatários
 
@@ -42,12 +42,12 @@ template ExchangeAssets
         mutual <- fetch mutualCid  -- Obtém a relação de pontos
 
         -- Validações
-        assertMsg "Pontos insuficientes" (mutual.points >= 100)
+        assertMsg "Pontos insuficientes" (mutual.points >= pointsRequired)
         assertMsg "Comerciante inválido" (merchant == mutual.merchant)
 
-        -- Deduz 100 pontos e adiciona o novo ativo
+        -- Deduz os pontos necessários e adiciona o novo ativo
         let updatedMutual = mutual with
-            points = mutual.points - 100
+            points = mutual.points - pointsRequired
             assets = asset :: mutual.assets
 
         -- Atualiza o contrato Mutual com os novos valores
