@@ -15,9 +15,119 @@ testCourseProposal = script do
   andre <- allocateParty "Andre"
   educhain <- allocateParty "Educhain Incentives"
     
-  setTime (time (date 2024 May 20) 10 35 0)
+  setTime (time (date 2024 May 21) 10 35 0)
   now <- getTime 
-   
+
+ -- Cria uma proposta de curso para Natacha
+  natachaCourseProposalCid <- submitMulti [natacha, educhain] [] do
+      createCmd CourseProposal with
+        customer = natacha
+        educhain = educhain
+        courseInfo = CourseInfo
+          with 
+            courseId = "1"
+            title = "Introduction a Blockchain"
+            details = "An introduction course on blockchain technology"
+            soloCourse = True
+            account = 123
+            courseType = "Online"
+            status = "Active"
+            startDate = date 2024 May 21
+            endDate = date 2024 May 30
+        note = "Please review the proposal"
+  
+  -- Revisão da proposta de curso para Natacha
+  revisedNatachaCourseProposalCid <- submit educhain do
+      exerciseCmd natachaCourseProposalCid Revise with
+        newCourseInfo = CourseInfo with
+          courseId = "1"
+          title = "Introduction a Blockchain (Revised)"
+          details = "An introduction course on blockchain technology (Revised)"
+          soloCourse = True
+          account = 123
+          courseType = "Online"
+          status = "Active (Revised)"
+          startDate = date 2024 May 21
+          endDate = date 2024 May 30
+        comment = "Updated course details"
+  
+  -- Aprovação da proposta de curso para Natacha
+  approvedNatachaCourseProposalCid <- submit educhain do
+    exerciseCmd revisedNatachaCourseProposalCid Approve with
+      newCourseInfo = CourseInfo with
+          courseId = "1"
+          title = "Introduction a Blockchain (Approved)"
+          details = "An introduction course on blockchain technology (Approved)"
+          soloCourse = True
+          account = 123
+          courseType = "Online"
+          status = "Active (Approved)"
+          startDate = date 2024 May 21
+          endDate = date 2024 May 30 
+      comment = "Course approved! You may start your classes"
+
+  -- Criação de um curso
+  courseCid <- submitMulti [natacha, educhain] [] do
+    createCmd Course with
+      courseInfo = CourseInfo with
+        courseId = "1"
+        title = "Introduction a Blockchain (Approved)"
+        details = "An introduction course on blockchain technology (Approved)"
+        soloCourse = True
+        account = 123
+        courseType = "Online"
+        status = "Completed"
+        startDate = date 2024 May 21
+        endDate = date 2024 May 30
+      duration = 10
+      educhain = educhain
+      customer = natacha
+      evaluationDate = date 2024 Jun 16
+      educhainNote = None
+
+  -- Criação da realização do curso
+  accomplishmentCourseCid <- submit educhain do
+    createCmd AccomplishmentCourse with
+      courseCid = courseCid
+      courseInfo = CourseInfo with
+        courseId = "1"
+        title = "Introduction a Blockchain (Approved)"
+        details = "An introduction course on blockchain technology (Approved)"
+        soloCourse = True
+        account = 123
+        courseType = "Online"
+        status = "Completed"
+        startDate = date 2024 May 21
+        endDate = date 2024 May 30
+      educhain = educhain
+      customer = natacha
+      points = 0
+
+  -- Educhain marca o curso como concluído e adiciona pontos
+  updatedAccomplishmentCourseCid <- submit educhain do 
+    exerciseCmd accomplishmentCourseCid Accomplished 
+      with
+        newCourseInfo = CourseInfo with
+          courseId = "1"
+          title = "Introduction a Blockchain (Completed)"
+          details = "An introduction course on blockchain technology (Completed)"
+          soloCourse = True
+          account = 123
+          courseType = "Online"
+          status = "Completed"
+          startDate = date 2024 May 21
+          endDate = date 2024 May 30
+        comment = "Great work completing the course!"
+        additionalPoints = 100
+
+  -- Consultar a realização do curso atualizada de Natacha
+  updatedAccomplishments <- query @AccomplishmentCourse natacha
+  let updatedAccomplishment = head updatedAccomplishments
+
+  -- Verificar se os pontos foram atualizados corretamente
+  debug updatedAccomplishment 
+
+ -- ## Test 2 - Andre ##  --
   -- Cria uma proposta de curso para Andre
   andreCourseProposalCid <- submitMulti [andre, educhain] [] do
       createCmd CourseProposal with
