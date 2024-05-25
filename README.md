@@ -17,8 +17,21 @@ The Account template defines the structure of an account, including the parties 
 The CourseService template defines the structure of a course service, including the parties involved and the choices available to them. The template includes a non-consuming choice, CreateBlankApplication, which allows the employee to create a blank application. The template also includes a choice, CompleteCourse, which allows the course to complete the course and add points to the account.
 
 ### Rewards
-...
 
+This module defines a flexible rewards system where customers can:
+Accumulate points.
+Transfer points to others.
+Exchange points for a variety of assets offered by merchants.
+The Rewards.daml module is ideal for loyalty programs and incentive systems that aim to offer a diverse range of rewards to customers.
+
+### AtomicSwaps
+
+The AtomicSwap.daml module defines a comprehensive framework for managing assets and performing atomic swaps. The key features include:
+Asset transfer proposals and acceptance.
+Asset merging and splitting.
+Observer management for assets.
+Secure and validated asset swapping between parties.
+This module ensures that all asset operations are conducted with proper validations and conditions, making it suitable for scenarios requiring robust asset management and exchange mechanisms.
 
 ## Status Data Type
 
