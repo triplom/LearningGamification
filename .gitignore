@@ -1,3 +1,13 @@
 /.daml
 /log
 navigator.log
+
+# IDE / editor
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+

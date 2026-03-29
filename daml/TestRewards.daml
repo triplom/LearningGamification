@@ -3,7 +3,7 @@ module TestRewards where
 import Daml.Script
 import Rewards
 
--- Função auxiliar para alocar partes
+-- Helper function to allocate parties
 allocateParties: Script (Party, Party, Party)
 allocateParties = do
     merchant <- allocateParty "Parceiro"
@@ -11,7 +11,7 @@ allocateParties = do
     newOwner <- allocateParty "Andre"
     return (merchant, customer, newOwner)
 
--- Função auxiliar para criar um contrato Mutual
+-- Helper function to create a Mutual contract
 createMutual: Party -> Party -> Int -> Script (ContractId Mutual)
 createMutual merchant customer points = do
     submitMulti [customer, merchant] [] do
@@ -21,73 +21,88 @@ createMutual merchant customer points = do
             points = points
             assets = []
 
--- Testa a criação do contrato Mutual
+-- Test: creation of the Mutual contract
 testCreateMutualContract: Script ()
 testCreateMutualContract = script do
     (merchant, customer, _) <- allocateParties
     
-    -- Criação do contrato Mutual
+    -- Create the Mutual contract
     mutualCid <- createMutual merchant customer 100
 
-    -- Verificação do contrato criado
-    mutual <- queryContractId Mutual mutualCid
+    -- Verify the created contract
+    Some mutual <- queryContractId customer mutualCid
     debug mutual
-    assertMsg "Falha ao criar o contrato Mutual" (mutual.points == 100)
+    assertMsg "Failed to create Mutual contract" (mutual.points == 100)
 
--- Testa a transferência de pontos
+-- Test: points transfer
 testTransferPoints: Script ()
 testTransferPoints = script do
     (merchant, customer, newOwner) <- allocateParties
     
-    -- Criação do contrato Mutual
+    -- Create the Mutual contract
     mutualCid <- createMutual merchant customer 100
 
-    -- Transferência de pontos para o novo proprietário
+    -- Transfer points to the new owner
     newMutualCid <- submit customer do
         exerciseCmd mutualCid MutualTransfer with
             newOwner = newOwner
 
-    -- Verificação do novo contrato criado
-    newMutual <- queryContractId Mutual newMutualCid
+    -- Verify the new contract
+    Some newMutual <- queryContractId newOwner newMutualCid
     debug newMutual
-    assertMsg "Falha na transferência de pontos" (newMutual.customer == newOwner)
+    assertMsg "Failed to transfer points" (newMutual.customer == newOwner)
 
--- Testa a troca de pontos por ativos
+-- Test: exchange points for assets
 testExchangePointsForAssets: Script ()
 testExchangePointsForAssets = script do
     (merchant, customer, _) <- allocateParties
-    
-    -- Criação do contrato Mutual
+
+    -- Create the ExchangeAssets contract (100 points required per asset)
+    exchangeCid <- submitMulti [merchant, customer] [] do
+        createCmd ExchangeAssets with
+            merchant = merchant
+            customer = customer
+            pointsRequired = 100
+
+    -- Create the Mutual contract with 150 points
     mutualCid <- createMutual merchant customer 150
 
-    -- Troca de pontos por um ativo
+    -- Exchange points for an asset
     newMutualCid <- submit merchant do
-        exerciseCmd mutualCid (SendAsset with
+        exerciseCmd exchangeCid SendAsset with
             mutualCid = mutualCid
-            asset = GiftCard)
+            asset = GiftCard
 
-    -- Verificação do novo contrato criado
-    newMutual <- queryContractId Mutual newMutualCid
+    -- Verify the updated Mutual contract
+    Some newMutual <- queryContractId customer newMutualCid
     debug newMutual
-    assertMsg "Falha na troca de pontos por ativos" (newMutual.points == 50 && GiftCard `elem` newMutual.assets)
+    assertMsg "Failed to exchange points for assets" (newMutual.points == 50 && GiftCard `elem` newMutual.assets)
 
--- Testa a falha na troca devido a pontos insuficientes
+-- Test: failure when points are insufficient
 testInsufficientPoints: Script ()
 testInsufficientPoints = script do
     (merchant, customer, _) <- allocateParties
-    
-    -- Criação do contrato Mutual
+
+    -- Create the ExchangeAssets contract (100 points required per asset)
+    exchangeCid <- submitMulti [merchant, customer] [] do
+        createCmd ExchangeAssets with
+            merchant = merchant
+            customer = customer
+            pointsRequired = 100
+
+    -- Create the Mutual contract with only 50 points (not enough)
     mutualCid <- createMutual merchant customer 50
 
-    -- Tenta trocar pontos por um ativo, mas deve falhar
-    failed <- submitMustFail merchant do
-        exerciseCmd mutualCid (SendAsset with
+    -- Attempt to exchange points for an asset — must fail
+    submitMustFail merchant do
+        exerciseCmd exchangeCid SendAsset with
             mutualCid = mutualCid
-            asset = GiftCard)
+            asset = GiftCard
 
-    assertMsg "Troca deveria falhar devido a pontos insuficientes" 
+    -- submitMustFail already asserts the failure; no further assertion needed
+    return ()
 
--- Função principal para executar todos os testes
+-- Main function to run all tests
 runTests: Script ()
 runTests = script do
     testCreateMutualContract

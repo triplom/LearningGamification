@@ -7,24 +7,24 @@ import DA.Time
 type CourseProposalId = ContractId CourseProposal
 type CourseId = ContractId Course
 
--- Define a record type to represent information about a course
+-- Record type representing the metadata of a course
 data CourseInfo = CourseInfo with
-    courseId: Text         -- Id of the course
-    title: Text            -- Title of the course
-    details: Text          -- Details/description of the course
-    soloCourse: Bool       -- Indicates if it's a solo course
-    account : Int          -- Account information for the course
-    courseType: Text       -- Type of the course
-    status: Text           -- Status of the course
-    startDate: Date        -- Start date of the course
-    endDate: Date          -- End date of the course
+    courseId: Text         -- Unique identifier for the course
+    title: Text            -- Course title
+    details: Text          -- Course description/details
+    soloCourse: Bool       -- True if the course is taken individually
+    account : Int          -- Associated account reference
+    courseType: Text       -- Type of course (e.g. Online, In-Person)
+    status: Text           -- Current status (e.g. Active, Completed)
+    startDate: Date        -- Course start date
+    endDate: Date          -- Course end date
         deriving (Show, Eq)
 
--- Define a typeclass for calculating duration
+-- Typeclass for computing a duration from an input type to an output type
 class Duration i o where
     getDuration : i -> o
 
--- Implement Duration for CourseInfo to Int
+-- Compute the number of weekdays between start and end of a course
 instance Duration CourseInfo Int where
     getDuration course =
         let
@@ -40,41 +40,40 @@ instance Duration CourseInfo Int where
             diffInDays: Int
             diffInDays = wholeDays diffInRelTime
 
-            diffInWeekDays = diffInDays - (diffInDays / 7 * 2) + 1  -- Account for weekdays
+            diffInWeekDays = diffInDays - (diffInDays / 7 * 2) + 1  -- Subtract weekend days
         in 
             diffInWeekDays
 
--- Define a template for a course proposal
+-- Template for a course proposal submitted by a customer and reviewed by Educhain
 template CourseProposal
   with
-    customer : Party            -- Customer proposing the course
-    educhain : Party            -- Party representing the blockchain platform
-    courseInfo: CourseInfo      -- Information about the course
-    note: Text                  -- Additional notes/comments
+    customer : Party            -- The student proposing the course
+    educhain : Party            -- The Educhain platform party
+    courseInfo: CourseInfo      -- Proposed course details
+    note: Text                  -- Additional notes or comments
   where
-    signatory educhain, customer  -- Parties who can sign the contract
+    signatory educhain, customer
 
-    -- Ensure that the end date is later than the start date
+    -- Ensure the end date is strictly after the start date
     ensure (courseInfo.startDate < courseInfo.endDate)
 
-    -- Non-consuming choice to propose a course
+    -- No-op choice used to reference self (returns own contract ID)
     choice Propose: CourseProposalId 
         controller customer, educhain
         do
           return self
 
-    -- Non-consuming choice for educhain to check customer accomplishments
-    choice CustomerAccomplishments: [Text]
+    -- Educhain queries the customer's completed course accomplishments
+    nonconsuming choice CustomerAccomplishments: [Text]
         with
             accomplishments: [(ContractId AccomplishmentCourse, AccomplishmentCourse)]
         controller educhain
         do
           if null accomplishments then return ["N/A"]
           else do
-            -- Return a list of course titles and details from accomplishments
             return $ map (\acc -> acc._2.courseInfo.title <> " : " <> acc._2.courseInfo.details) accomplishments
 
-    -- Choice for educhain to reject a course proposal
+    -- Educhain rejects the proposal outright
     choice Reject: ()
       with
           feedback: Text
@@ -82,61 +81,63 @@ template CourseProposal
       do
          archive self
 
-    -- Choice for customer to revise a course proposal
+    -- Educhain requests changes to the course proposal.
+    -- The new course info must differ from the current one.
     choice Revise: CourseProposalId
       with
           newCourseInfo: CourseInfo
           comment: Text
       controller educhain
       do
-          assertMsg ("Course info needs to be revised") (this.courseInfo /= newCourseInfo)
+          assertMsg "Course info needs to be revised" (this.courseInfo /= newCourseInfo)
           create this with
             courseInfo = newCourseInfo
             note = comment
 
-    -- Choice for customer to cancel the proposal
+    -- Customer cancels their own proposal
     choice Cancel: ()
       controller customer
       do
         archive self
 
-    -- Choice for educhain to approve the course proposal and create a course contract
+    -- Educhain approves the course proposal, optionally updating the course info
     choice Approve: CourseProposalId
       with
           newCourseInfo: CourseInfo
           comment: Text
       controller educhain
       do
-          assertMsg ("Course Approved") (this.courseInfo /= newCourseInfo)
+          -- No assertion required: approval is valid regardless of whether courseInfo changed
           create this with
             courseInfo = newCourseInfo
             note = comment
 
--- Define a template for a course
+-- Template representing an active course
 template Course
     with
-        courseInfo: CourseInfo      -- Information about the course
-        duration: Int               -- Duration of the course
-        educhain: Party             -- Party representing the blockchain platform
-        customer: Party
-        evaluationDate: Date        -- Date of course evaluation
-        educhainNote: Optional(Text)  -- Optional note from educhain
+        courseInfo: CourseInfo      -- Course details
+        duration: Int               -- Duration in weekdays
+        educhain: Party             -- The Educhain platform party
+        customer: Party             -- The student enrolled in the course
+        evaluationDate: Date        -- Date by which the course must be evaluated
+        educhainNote: Optional(Text)  -- Optional note from Educhain
     where
-        signatory educhain, customer  -- Parties who can sign the contract
+        signatory educhain, customer
 
-        -- Ensure evaluationDate is after endDate
+        -- Evaluation date must be after the course end date
         ensure evaluationDate > courseInfo.endDate
 
-        -- Choice for educhain to evaluate a course
+        -- Educhain evaluates the course.
+        -- If readyToPublish is True, an AccomplishmentCourse is created.
+        -- Otherwise, the evaluation date and note are updated.
         choice Evaluate: Either (ContractId Course) (ContractId AccomplishmentCourse)
             with
-                todaysDate: Date           -- Current date
+                todaysDate: Date           -- The current date
                 feedback: Optional(Text)   -- Optional feedback
-                readyToPublish: Bool       -- Indicates if course is ready to be published
-                points: Int                -- Points associated with the course
+                readyToPublish: Bool       -- Whether the course is ready for publication
+                points: Int                -- Points to award upon completion
             controller educhain
             do
-                -- If readyToPublish, create an accomplishment contract; otherwise, update evaluation date and note
                 if readyToPublish then do
                     newAcc <- create AccomplishmentCourse with
                         courseCid = self
@@ -148,39 +149,38 @@ template Course
                 else do
                     currCourse <- create this with 
                         evaluationDate = todaysDate
-                        educhainNote = feedback
+                        educhainNote   = feedback
                     return (Left currCourse)
 
-        -- Choice for educhain or course customer to cancel a course
+        -- Either Educhain or the student can cancel the course
         choice CancelCourse: ()
             controller educhain, customer
             do
                 archive self
 
--- Define a template for an accomplishment
+-- Template representing a completed course accomplishment
 template AccomplishmentCourse
     with
-        courseCid: ContractId Course    -- Course associated with the accomplishment
-        courseInfo: CourseInfo      -- Information about the course
-        educhain: Party                 -- Party representing the blockchain platform
-        customer: Party                 -- Customer who completed the course
-        points: Int                     -- Points associated with the accomplishment
+        courseCid: ContractId Course    -- The course this accomplishment belongs to
+        courseInfo: CourseInfo          -- Course details at time of completion
+        educhain: Party                 -- The Educhain platform party
+        customer: Party                 -- The student who completed the course
+        points: Int                     -- Points awarded for completion
     where
         signatory educhain
         observer customer
 
-        -- Non-consuming choice for educhain to mark the course as accomplished
+        -- Educhain records additional updates to the accomplishment (e.g. bonus points).
+        -- The course info must differ from the current record.
         choice Accomplished: ContractId AccomplishmentCourse
             with
                 newCourseInfo: CourseInfo  -- Updated course info
-                comment: Text              -- Comment about the accomplishment
-                additionalPoints: Int      -- Additional points to be awarded
+                comment: Text              -- Completion comment
+                additionalPoints: Int      -- Extra points to award
             controller educhain
             do
-                -- Ensure the course information has changed
-                assertMsg "Course Completed" (this.courseInfo /= newCourseInfo)
-                -- Create the updated accomplishment contract
+                assertMsg "Course info must differ to record an update" (this.courseInfo /= newCourseInfo)
                 create this with
-                    courseCid = this.courseCid
+                    courseCid  = this.courseCid
                     courseInfo = newCourseInfo
-                    points = this.points + additionalPoints
+                    points     = this.points + additionalPoints

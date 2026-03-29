@@ -1,54 +1,56 @@
 module Rewards where
 
--- Definição de diferentes tipos de ativos que podem ser trocados
+-- Different asset types that can be exchanged for points
 data AssetType = Cloth | Shoe | Toy | GiftCard deriving (Eq, Show)
 
--- Template Mutual representa a relação de pontos entre o comerciante e o cliente
+-- Mutual represents the points relationship between a merchant and a customer
 template Mutual
   with
-      merchant: Party  -- Parte representando o comerciante
-      customer: Party  -- Parte representando o cliente
-      points: Int      -- Pontos que o cliente possui
-      assets: [AssetType]  -- Lista de ativos disponíveis para troca
+      merchant: Party  -- The merchant party
+      customer: Party  -- The customer party
+      points: Int      -- Points held by the customer
+      assets: [AssetType]  -- List of assets the customer has received
   where
-    signatory customer, merchant  -- Cliente e comerciante são signatários
+    signatory customer, merchant
 
-    -- Choice para transferir pontos para um novo proprietário
+    -- Transfer points to a new owner
     choice MutualTransfer: ContractId Mutual
       with
-        newOwner: Party  -- Novo proprietário dos pontos
+        newOwner: Party  -- The new owner of the points
       controller customer
       do
-        -- Transfere os pontos para o novo proprietário
         create this with
             customer = newOwner
 
--- Template ExchangeAssets permite a troca de pontos por ativos
+-- ExchangeAssets governs the redemption of points for assets
+-- pointsRequired defines the cost (in points) of each asset redemption
 template ExchangeAssets
   with
-    merchant: Party  -- Parte representando o comerciante
-    customer: Party  -- Parte representando o cliente
-    pointsRequired: Int  -- Pontos necessários para a troca
+    merchant: Party  -- The merchant party
+    customer: Party  -- The customer party
+    pointsRequired: Int  -- Points required to redeem one asset
   where
-    signatory merchant, customer  -- Comerciante e cliente são signatários
+    signatory merchant, customer
 
-    -- Choice não consumível para enviar um ativo ao cliente
+    -- Redeem an asset by spending points from a Mutual contract.
+    -- The old Mutual contract is archived and a new one with updated
+    -- points and assets is returned, preventing double-spend.
     nonconsuming choice SendAsset: ContractId Mutual
       with
-        mutualCid: ContractId Mutual  -- Contract ID da relação de pontos
-        asset: AssetType  -- Ativo a ser enviado
+        mutualCid: ContractId Mutual  -- The customer's current Mutual contract
+        asset: AssetType              -- The asset being redeemed
       controller merchant
       do
-        mutual <- fetch mutualCid  -- Obtém a relação de pontos
+        mutual <- fetch mutualCid
 
-        -- Validações
-        assertMsg "Pontos insuficientes" (mutual.points >= pointsRequired)
-        assertMsg "Comerciante inválido" (merchant == mutual.merchant)
+        -- Validate points balance and merchant identity
+        assertMsg "Insufficient points" (mutual.points >= pointsRequired)
+        assertMsg "Invalid merchant" (merchant == mutual.merchant)
 
-        -- Deduz os pontos necessários e adiciona o novo ativo
-        let updatedMutual = mutual with
+        -- Archive the old Mutual contract to prevent double-spend
+        archive mutualCid
+
+        -- Create an updated Mutual with deducted points and the new asset
+        create mutual with
             points = mutual.points - pointsRequired
             assets = asset :: mutual.assets
-
-        -- Atualiza o contrato Mutual com os novos valores
-        create updatedMutual

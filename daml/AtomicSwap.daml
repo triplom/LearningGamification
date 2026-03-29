@@ -5,7 +5,7 @@ data SplitResult = SplitResult with
   remainder : ContractId Asset
     deriving (Eq, Show)
 
--- Definição de diferentes tipos de ativos que podem ser trocados
+-- Asset types that can be held or swapped
 data AssetType = GiftCard | Voucher deriving (Eq, Show)
 
 template Asset
@@ -20,6 +20,7 @@ template Asset
     observer observers
     ensure points > 0
 
+    -- Propose a transfer of this asset to a recipient
     choice Asset_Transfer: ContractId AssetTransferProposal 
       with
         recipient: Party
@@ -29,6 +30,7 @@ template Asset
           asset = this
           recipient
 
+    -- Merge another asset into this one (must share issuer and owner)
     choice Asset_Merge: ContractId Asset
       with
         otherAssetCid: ContractId Asset
@@ -44,6 +46,7 @@ template Asset
           points = points + otherAsset.points
           reward = reward ++ otherAsset.reward
 
+    -- Split this asset into two parts; returns both contract IDs
     choice Asset_Split: SplitResult
       with
         splitPoints: Int
@@ -60,6 +63,7 @@ template Asset
           splitAsset
           remainder
 
+    -- Update the list of observers on this asset
     choice Asset_SetObservers: ContractId Asset
       with
         newObservers: [Party]
@@ -68,6 +72,7 @@ template Asset
         create this with
           observers = newObservers
 
+-- Represents a pending transfer proposal for an asset
 template AssetTransferProposal
   with
     asset: Asset
@@ -77,38 +82,43 @@ template AssetTransferProposal
     observer recipient
     ensure asset.points > 0
 
+    -- Recipient accepts the transfer and becomes the new owner
     choice AssetTransferProposal_Accept: ContractId Asset
       controller recipient
       do
         create asset with
           owner = recipient
 
+    -- Recipient rejects the transfer; asset is returned to sender unchanged
     choice AssetTransferProposal_Reject: ContractId Asset
       controller recipient
       do
         create asset
 
+-- Represents a proposal to atomically swap two assets between two parties
 template SwapProposal
   with
     initiator: Party
     recipient: Party
-    offerCid: ContractId Asset
-    requestedAsset: Asset
+    offerCid: ContractId Asset       -- Asset the initiator is offering
+    requestedAsset: Asset            -- Specification of the asset the initiator wants
   where
     signatory initiator
     observer recipient
 
+    -- Recipient accepts the swap by providing a contract matching requestedAsset
     choice SwapProposal_Accept: ()
       with
-        assetCid: ContractId Asset
+        assetCid: ContractId Asset   -- The asset the recipient is providing
       controller recipient
       do
         asset <- fetch assetCid
         assertMsg "Asset issuer does NOT match." (asset.issuer == requestedAsset.issuer) 
         assertMsg "Asset points does NOT match." (asset.points == requestedAsset.points)
-        assertMsg "Asset owner does NOT match." (asset.owner == requestedAsset.owner)
+        assertMsg "Asset owner does NOT match."  (asset.owner == requestedAsset.owner)
 
-        offerTransferProposal <- exercise offerCid Asset_Transfer with { recipient = recipient }
+        -- Atomically transfer both assets to the opposite party
+        offerTransferProposal    <- exercise offerCid Asset_Transfer with { recipient = recipient }
         requestedTransferProposal <- exercise assetCid Asset_Transfer with { recipient = initiator }
         exercise offerTransferProposal AssetTransferProposal_Accept
         exercise requestedTransferProposal AssetTransferProposal_Accept

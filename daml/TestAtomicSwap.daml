@@ -75,20 +75,22 @@ testAtomicSwap = script do
     exerciseCmd natachaPointsCid Asset_SetObservers with
       newObservers = [parceiros]
 
-  -- natachaSwapAndreCid <- submit natacha do
-  --   createCmd SwapProposal with
-  --     initiator = natacha
-  --     recipient = andre
-  --     offerCid = natachaPointsWithObsCid
-  --     requestedAsset = Asset with
-  --       issuer = educhain
-  --       owner = andre
-  --       points = 100
-  --       reward = [GiftCard]
-  --       observers = [parceiros]
+  -- Natacha proposes a swap: her 100-point Voucher asset for Andre's 100-point GiftCard asset
+  natachaSwapAndreCid <- submit natacha do
+    createCmd SwapProposal with
+      initiator = natacha
+      recipient = andre
+      offerCid = natachaPointsWithObsCid
+      requestedAsset = Asset with
+        issuer = educhain
+        owner = andre
+        points = 100
+        reward = [GiftCard]
+        observers = [parceiros]
 
-  -- submit andre do
-  --   exerciseCmd natachaSwapAndreCid SwapProposal_Accept with
-  --     assetCid = andreAssetCid2
+  -- Andre accepts the swap, providing his GiftCard asset
+  submit andre do
+    exerciseCmd natachaSwapAndreCid SwapProposal_Accept with
+      assetCid = andreAssetCid2
 
   pure ()
