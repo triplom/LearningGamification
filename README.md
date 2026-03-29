@@ -222,6 +222,17 @@ daml build
 
 ---
 
+## Related Projects
+
+| Project | Relationship |
+|---------|-------------|
+| [daml-learning-lab](https://github.com/triplom/daml-learning-lab) | **Prerequisite** — covers all DAML fundamentals, patterns (Propose-Accept, Delegation, Locking), interfaces, and testing techniques that this project applies in a real use case |
+| [machine-learning-lab](https://github.com/triplom/machine-learning-lab) | **Extension opportunity** — point scoring models, course recommendation engines, and completion prediction can be built with the ML techniques there and integrated here |
+| [python_learning](https://github.com/triplom/python_learning) | **Complementary** — Python data science tools (NumPy, Pandas, Scikit-learn) can be used to analyse ledger data exported from this project's DAML scripts |
+| [cka-study-lab](https://github.com/triplom/cka-study-lab) | **Deployment target** — Canton (DAML's ledger runtime) is typically deployed on Kubernetes; CKA skills cover the infrastructure needed to run this project in production |
+
+---
+
 ## Contributors
 
 - [@triplom](https://github.com/triplom)
